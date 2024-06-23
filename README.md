@@ -1,1 +1,1 @@
-# egg_cvd
+# Egg CVD study

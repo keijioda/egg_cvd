@@ -1,0 +1,337 @@
+---
+title: "Egg CVD study"
+output: github_document
+always_allow_html: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Required packages
+pacs <- c("tidyverse", "readxl", "lubridate", "tableone", "gridExtra", "survival")
+sapply(pacs, require, character.only = TRUE)
+
+# Function to search variables
+search_var <- function(df, pattern, ...) {
+  loc <- grep(pattern, names(df), ...)
+  if (length(loc) == 0) warning("There are no such variables")
+  else return(data.frame(loc = loc, varname = names(df)[loc]))
+}
+
+# Medicare crosswalk ------------------------------------------------------
+
+# Read crosswalk file: n = 70.968
+crosswalk <- read_fwf("./Data/12172/2022/ssn_bene_xwalk_res000058038_req012172_2022.dat",
+                      fwf_widths(c(9, 15, 1, 1, 1), c("ORIG_SSN", "BENE_ID", "SSN_MATCH", "SEX_MATCH", "DOB_MATCH")))
+
+# Extract matched BENE_IDs
+all_matched_bene_ids <- crosswalk %>% 
+  filter(SSN_MATCH == 1)
+
+# BENE_IDs of gender or DOB mismatch (to be removed)
+mismatches <- crosswalk %>% 
+  filter(SSN_MATCH == 1 & (SEX_MATCH == 0 | DOB_MATCH == 0)) %>%
+  select(BENE_ID)
+  
+# There are two duplicates in BENE_IDs...
+dup_BENE_IDs <- all_matched_bene_ids %>% 
+  group_by(BENE_ID) %>% 
+  summarize(n = sum(n())) %>% 
+  filter(n > 1)
+
+# There are 106 SSN duplicates 
+dup_SSNs <- all_matched_bene_ids %>% 
+  group_by(ORIG_SSN) %>% 
+  summarize(n = sum(n())) %>% 
+  filter(n > 1)
+
+# BENE_IDs that need to be removed:
+# Gender/DOB mismatch
+# SSN/BENE_ID duplicates
+exclude_BENE_IDs <- dup_BENE_IDs %>% 
+  select(BENE_ID) %>% 
+  union(all_matched_bene_ids %>% 
+          filter(ORIG_SSN %in% dup_SSNs$ORIG_SSN) %>% 
+          select(BENE_ID)
+  ) %>% 
+  union(mismatches)
+
+# Medicare MSBF file ------------------------------------------------------
+
+# Read MBSF Summary data on each year
+# Data specification of MSBF files
+fts_msbf <- read_excel("./Data/mbsf_format.xlsx")
+
+# Create file names
+year <- 2008:2020
+fname <- paste0("./Data/12172/", year, "/mbsf_abcd_summary_res000058038_req012172_", year, ".dat")
+
+# Read all MSBF files of 13 years
+all_msbf <- fname %>% 
+  lapply(\(x) read_fwf(x, fwf_widths(fts_msbf$length, fts_msbf$long_name))) %>% 
+  lapply(\(x) anti_join(x, exclude_BENE_IDs)) %>% 
+  setNames(year)
+
+# Long format over years
+all_msbf_long <- all_msbf %>% 
+  do.call(rbind, .) %>% 
+  arrange(BENE_ID, BENE_ENROLLMT_REF_YR)
+
+# Medicare chronic condition file -----------------------------------------
+
+# Read chronic conditions data on each year
+fts_cc <- read_excel("./Data/mbsf_cc_format.xlsx")
+
+# Create file names
+year <- 2008:2020
+fname <- paste0("./Data/12172/", year, "/mbsf_cc_summary_res000058038_req012172_", year, ".dat")
+
+# Read all MSBF files of 13 years
+all_cc <- fname %>% 
+  lapply(\(x) read_fwf(x, fwf_widths(fts_cc$length, fts_cc$long_name))) %>% 
+  lapply(\(x) anti_join(x, exclude_BENE_IDs)) %>% 
+  setNames(year)
+
+# Long format over years
+all_cc_long <- all_cc %>% 
+  do.call(rbind, .) %>% 
+  arrange(BENE_ID, BENE_ENROLLMT_REF_YR)
+
+# AHS-2 Medicare link file ------------------------------------------------
+
+# AHS-2 analysis ID: N = 51,917
+ahs <- read_csv("./Data/MedicareMatches2022.csv")
+
+# There are 103 analysis IDs that appears twice
+# There are 226 NULL values on analysis ID
+# 104 analysis IDs (103 duplicates + NAs) to be removed
+exclude_analysisIDs <- ahs %>% 
+  group_by(AnalysisID) %>%
+  tally() %>% 
+  filter(n > 1) %>%
+  select(AnalysisID)
+
+# 432 rows removed (103 * 2 + 226)
+# yielding 51,485 unique analysis ID (and unique Bene_IDs)
+ahs_dup_removed <- ahs %>% anti_join(exclude_analysisIDs)
+
+# AHS-2 data --------------------------------------------------------------
+
+# N = 96,144
+ahsdata <- read.csv("./Data/BaselineDataForMedicare20190531.csv", header=TRUE)
+names(ahsdata) <- tolower(names(ahsdata))
+
+# Remove those with missing analysis ID
+# Calculate birth date and age in 2010
+ahsdata <- 
+  ahsdata %>% 
+  filter(!is.na(analysisid)) %>% 
+  mutate(mob         = ifelse(mob > 12, NA, mob),
+         dob         = ifelse(dob > 31, NA, dob),
+         yob         = ifelse(yob >= 9999, NA, yob),
+         bdate       = as.Date(paste(yob, mob, dob, sep="-")),
+         qreturndate = as.Date(qreturndate),
+         agein       = as.numeric((qreturndate - bdate) / 365.242),
+         age2010     = floor(as.numeric((as.Date("2010-12-31") - bdate) / 365.242)),
+         age2011     = floor(as.numeric((as.Date("2011-12-31") - bdate) / 365.242)),
+         deceased    = as.Date(deceased, format = "%Y-%m-%d"))
+
+# Convert to numeric
+ahsdata <- ahsdata %>% 
+  mutate_at(vars(eggbetrf:educyou, incomeh:alcnow, cancer, anginay:a05q9, sleephrs:walkruna), 
+            function(x) as.numeric(as.character(x)))
+
+# Calculate BMI and BMI category
+ahsdata <- ahsdata %>% 
+  mutate(heighti = ifelse(heighti > 11, NA, heighti),
+         bmi     = weight / (heightf * 12 + heighti) ^ 2 * 702,
+         # bmicat  = cut(bmi, breaks = c(0, 18.5, 25, 30, Inf), right = FALSE),
+         bmicat  = cut(bmi, breaks = c(0, 25, 30, Inf), right = FALSE),
+         # bmicat  = factor(bmicat, labels = c("Underweight", "Normal", "Overweight", "Obese")))
+         bmicat  = factor(bmicat, labels = c("Normal", "Overweight", "Obese")))
+
+# Recode marital statas, education and sleep
+ahsdata <- ahsdata %>% 
+  mutate(marital   = recode(marital, "Never", "Married", "Married", "Married", "Div/Wid", "Div/Wid", "Div/Wid"),
+         marital   = factor(marital, levels = c("Married", "Never", "Div/Wid")),
+         educyou   = recode(educyou, "HS or less",   "HS or less",   "HS or less", 
+                                     "Some college", "Some college", "Some college", 
+                                     "Col grad+",    "Col grad+",    "Col grad+"),
+         educyou   = factor(educyou, levels = c("HS or less", "Some college", "Col grad+")),
+         educyou2  = relevel(educyou, ref = "Col grad+"),
+         sleephrs  = recode(sleephrs, "<= 5 hrs", "<= 5 hrs", "<= 5 hrs", "6 hrs", "7 hrs",  
+                                      "8 hrs", ">= 9 hrs", ">= 9 hrs", ">= 9 hrs"),
+         sleephrs  = factor(sleephrs, levels = c("<= 5 hrs", "6 hrs", "7 hrs", "8 hrs", ">= 9 hrs")),
+         sleephrs2 = relevel(sleephrs, ref = "7 hrs"))
+
+# Dietary pattern
+ahsdata$vegstat <- factor(ahsdata$vegstat, labels=c("Vegan", "Lacto-ovo",  "Semi", "Pesco", "Non-veg"))
+
+# Physical activity
+test <- ahsdata %>% 
+  mutate(times    = walkrunf - 1,
+         duration = recode(exeramt, 0, 5, 15, 25, 35, 45, 55, 60),
+         minutes  = recode(walkruna, 5, 15, 25, 35, 45, 55, 60),
+         distance = recode(walkrund, 0.25, 0.5, 1, 1.5, 2, 3, 4),
+         vigofreq = ifelse(exerfreq - 2 < 0, 0, exerfreq - 2),
+         ex4b4c   = times * distance,
+         ex4b4d   = times * minutes,
+         ex3a3b   = vigofreq * duration)
+
+test <- test %>% 
+  mutate(none = ifelse((ex3a3b == 0 & (walkrun == 2 | is.na(walkrun))) | 
+                       (ex3a3b == 0 & times == 0) | (vigofreq == 0 & walkrun == 2), 1, 0),
+         low  = ifelse((0 < ex3a3b & ex3a3b < 105) | (0 < ex4b4d & ex4b4d < 105) | (0 < ex4b4c & ex4b4c < 3), 1, 0),
+         mid  = ifelse(ex3a3b >= 105 | (105 <= ex4b4d & ex4b4d < 175) | (3 <= ex4b4c & ex4b4c < 9), 1, 0),
+         hi   = ifelse(ex4b4d >= 175 | ex4b4c >= 9, 1, 0))
+
+ahsdata$exercise[test$none == 1] <- 1
+ahsdata$exercise[test$low  == 1] <- 2
+ahsdata$exercise[test$mid  == 1] <- 3
+ahsdata$exercise[test$hi   == 1] <- 4
+ahsdata$exercise <- factor(ahsdata$exercise, labels=c("None", "Low", "Moderate", "Vigorous"))
+rm(test)
+
+# AHS-2 dietary data ------------------------------------------------------
+
+# N = 91099 obs, 105 variables
+ahsdiet0 <- read.csv("./Data/MEDC_DMENT-FULL-20191008-0.csv", header = TRUE)
+
+# N = 4498 obs, 105 variables
+ahsdiet_ex <- read.csv("./Data/MEDC_DMENT-FULL-EXCLUDED-20191008-0.csv", header = TRUE)
+
+# Concatenate two dfs
+ahsdiet <- ahsdiet0 %>% bind_rows(ahsdiet_ex)
+names(ahsdiet) <- tolower(names(ahsdiet))
+ahsdiet$bmi <- NULL
+
+# Merge AHS data with Medicare --------------------------------------------
+
+# Extract data of the last seen: MSBF and CC files  
+msbf_last_seen <- all_msbf_long %>%
+  group_by(BENE_ID) %>% 
+  slice(n())
+
+cc_last_seen <- all_cc_long %>%
+  group_by(BENE_ID) %>% 
+  slice(n())
+
+# Merge AHS data with Medicare
+# Results in n = 44,384 subjects
+ahs_medic <- msbf_last_seen %>% 
+  inner_join(cc_last_seen %>% select(-BENE_ENROLLMT_REF_YR), by = "BENE_ID") %>%
+  inner_join(ahs_dup_removed %>% 
+               rename(BENE_ID = Bene_ID) %>% 
+               mutate(analysisid = parse_number(AnalysisID)), by = "BENE_ID") %>% 
+  inner_join(ahsdata, by = "analysisid") %>% 
+  left_join(ahsdiet, by = "analysisid") %>% 
+  ungroup()
+
+
+# Apply inclusion/exclusion criteria --------------------------------------
+
+# Remove if qreturndate is missing -- 25 subjects
+ahs_medic %>%
+  summarize(n = sum(is.na(qreturndate)))
+
+# Results in n = 44,359 subjects
+ahs_medic <- ahs_medic %>% 
+  filter(!is.na(qreturndate))
+
+# Remove if AGE_AT_END_REF_YR < 65 (n = 1545)
+# Results in n = 42,814
+ahs_medic %>% 
+  filter(AGE_AT_END_REF_YR < 65) %>% 
+  nrow()
+  
+ahs_medic <- ahs_medic %>% 
+  filter(AGE_AT_END_REF_YR >= 65)
+
+# Remove if BMI is missing (n = 1174) or extreme (n = 148)
+# Resuts in n = 41,492
+ahs_medic %>% filter(is.na(bmi)) %>% tally()
+ahs_medic %>% filter(bmi < 16 | bmi > 60) %>% tally()
+ahs_medic %>% filter(bmi < 16 | bmi > 60 | is.na(bmi)) %>% tally()
+ahs_medic <- ahs_medic %>% 
+  filter(bmi >= 16, bmi <= 60)
+
+# Exclude missing kcal/diet (n = 97) or extreme kcal intake (n = 1039)
+# Results in n = 40,356
+ahs_medic %>% filter(is.na(kcal)) %>% tally()
+ahs_medic %>% filter(!(kcal > 500 & kcal < 4500)) %>% tally()
+ahs_medic <- ahs_medic %>% 
+  filter(kcal > 500 & kcal < 4500)
+
+# Check deaths
+ahs_medic %>% 
+  filter(!is.na(BENE_DEATH_DT)) %>% 
+  select(BENE_DEATH_DT, deceased) %>% 
+  filter(BENE_DEATH_DT != deceased) %>% 
+  print(n = Inf)
+
+# Do not use "deceased" variable!
+ahs_medic %>% 
+  filter(!is.na(deceased), !is.na(HYPERL_EVER)) %>% 
+  select(HYPERL_EVER, BENE_DEATH_DT, deceased) %>% 
+  filter(deceased < HYPERL_EVER)
+
+# Need to exclude unverified deaths
+# There are 22 unverified deaths
+ahs_medic %>% 
+  filter(!is.na(BENE_DEATH_DT)) %>% 
+  group_by(VALID_DEATH_DT_SW) %>% 
+  tally()
+
+unverified_deaths <- ahs_medic %>% 
+  filter(!is.na(BENE_DEATH_DT)) %>%
+  filter(is.na(VALID_DEATH_DT_SW)) %>% 
+  select(analysisid)
+
+# Exclude unverified deaths
+# Yields n = 40,334
+ahs_medic <- ahs_medic %>% 
+  anti_join(unverified_deaths, by = "analysisid") 
+
+```
+
+## Aim
+
+* Assess if the risk of developing CVD varies according to levels of meat intake among regular egg consumers with hyperlipidemia using the AHS-2 cohort linked with Medicare data
+
+* Assess the interaction between race and egg intake on the incidence of CVD among those with hyperlipidemia. 
+
+## Datasets
+
+* Medicare data
+  * For details regarding Medicare data, see [AHS-2 Medicare Linkage](https://github.com/keijioda/ahs_medicare_linkage/blob/main/summary.md) repository.
+  
+  * Master Beneficiary Summary File (MBSF), 2008-2020
+    * Contains beneficiary characteristics and enrollment information
+    
+  * Chronic Conditions file (CC), 2008-2020
+    * Contains the first occurrence date of 27 specific chronic conditions
+    * Used to identify prevalent/incident cases of dementia and/or Alzheimer's disease and
+    * to identify comorbidities
+    
+  * Both files include n = 44,585 unique subjects across years, after excluding 
+    * Gender/DOB mismatch with AHS-2 data
+    * Dupulicate beneficiary IDs and SSNs
+
+* AHS-2, n = 96,144
+  * Baseline data
+  * Dietary data
+  
+* After merging Medicare and AHS-2 data, there were n = 44,359 subjects.
+
+## Inclusion/exclusion criteria
+
+* Medicare beneficiaries who did not reach the age of 65 between 2008 and 2020 (e.g., younger beneficiaries with disabilities or end-stage renal disease) were excluded (n = 1545), resulting n = 42,814.
+
+* n = 1322 subjects with missing BMI or extreme BMI (<16 or >60), according to AHS questionnaire, were excluded, resulting n = 41,492.
+
+* n = 1136 subjects with extreme calorie intake (<500 or >4500 kcal) were excluded, resulting n = 40,356.
+
+* Unverified dates of deaths
+  * Medicare data include a variable (`VALID_DEATH_DT_SW`) indicating whether a beneficiary's day of death has been verified by the Social Security Administration or the Railroad Retirement Board.
+  * There were 22 unverified death dates. Excluding these resulted n = 40,334.
+
