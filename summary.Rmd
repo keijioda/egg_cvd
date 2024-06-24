@@ -408,10 +408,258 @@ cvd_df <- ahs_medic %>%
   mutate_all(\(x) ifelse(is.na(x), "No", "Yes"))
 
 CreateTableOne(cvd_vars, data = cvd_df) %>% kableone()
+
+# Based on ischemic HD, stroke, MI, CHF and Afib
+ahs_medic2 <- ahs_medic %>% 
+  # mutate(CVD_EVER = pmin(ISCHEMICHEART_EVER, STROKE_TIA_EVER, AMI_EVER, na.rm = TRUE),
+  mutate(CVD_EVER = pmin(ISCHEMICHEART_EVER, STROKE_TIA_EVER, AMI_EVER, CHF_EVER, ATRIAL_FIB_EVER, na.rm = TRUE),
+         CVD_EVER = ymd(CVD_EVER), 
+         CVD_YN = ifelse(is.na(CVD_EVER), 0, 1),
+         CVD_YN = factor(CVD_YN, labels = c("No", "Yes")))
+
+# Find prevalent cases
+cvd_diag_date <- ahs_medic2 %>% 
+  filter(CVD_YN == "Yes") %>% 
+  mutate(DateDiff = interval(qreturndate, CVD_EVER),
+         DateDiff_days = as.numeric(DateDiff, 'days'), 
+         DateDiff_months = as.numeric(DateDiff, 'months'), 
+         DateDiff_years = as.numeric(DateDiff, 'years')) 
+
+# How many cases in which qreturndate > diagnosis date?
+# 5,315 such cases
+prev_cvd <- cvd_diag_date %>% 
+  filter(DateDiff_days < 0) %>% 
+  select(analysisid)
 ```
 
 * If we define CVD cases as any one of the 5 conditions:
   * There are 18,181 cases (45.1%) of CVDs
   * Among them, there are 5,315 prevalent cases and 12,866 incident cases
+  * When the prevalent CVD cases were excluded, we have an analytic sample of n = 35,019 with 12,866 incident CVD cases (36.7%).
 
 * [Approach] Start with all 5 conditions combined and then explore individual conditions as sensitivity analysis
+
+### Other variables
+
+```{r other_vars, echo = FALSE}
+# Define variables for models ---------------------------------------------
+
+# Define ageout
+# If CVD_EVER exists (incident cases), the use this diag date
+# If non-case and BENE_DEATH_DT exists, then use this date died (censored)
+# Otherwise, use the end of BENE_ENROLLMT_REF_YR (year last seen)
+ahs_medic_inc <- ahs_medic2 %>% 
+  anti_join(prev_cvd, by = "analysisid") %>% 
+  mutate(
+    age_last_seen = time_length(interval(BENE_BIRTH_DT, make_date(BENE_ENROLLMT_REF_YR, 12, 31)), "year"),
+    ageout = case_when(
+              CVD_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, CVD_EVER), "year"),
+              CVD_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
+              CVD_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
+    fuyear = ageout - agein
+  )
+
+# Factor gender, categorize age into age groups, recode RTI race, smoking, and drinking
+ahs_medic_inc2 <- ahs_medic_inc %>% 
+  mutate(
+    bene_sex_F = factor(SEX_IDENT_CD, labels = c("M", "F")),
+    # bene_age_at_end_2008 = time_length(interval(BENE_BIRTH_DT, make_date(2008, 12, 31)), "year"),
+    bene_age_at_end_2020 = time_length(interval(BENE_BIRTH_DT, make_date(2020, 12, 31)), "year"),
+    # agecat     = cut(bene_age_at_end_2008, breaks = c(50, 60, 65, 70, 75, 80, 85, 120), right = FALSE),
+    # agecat     = factor(agecat, labels = c("<60", "60-64", "65-69", "70-74", "75-79", "80-84", "85+")),
+    agecat     = cut(bene_age_at_end_2020, breaks = c(65, 70, 75, 80, 85, 90, 95, 130), right = FALSE),
+    agecat     = factor(agecat, labels = c("65-69", "70-74", "75-79", "80-84", "85-89", "90-94", "95+")),
+    rti_race3  = recode(RTI_RACE_CD + 1, 3, 1, 2, 3, 3, 3, 3),
+    rti_race3  = factor(rti_race3, labels = c("NH White", "Black", "Other")),
+    smokenow   = ifelse(is.na(smokenow), 0, smokenow),
+    smokecat   = ifelse(smokenow == 1, 2, ifelse(smoke > 1, 2, 1)),
+    smokecat   = factor(smokecat, labels = c("Never", "Ever")),
+    alcnow     = ifelse(is.na(alcnow), 0, alcnow),
+    alccat     = ifelse(alcnow == 1, 2, ifelse(alcohol > 1, 2, 1)),
+    alccat     = factor(alccat, labels = c("Never", "Ever")),
+    vegstat2   = relevel(vegstat, ref = "Non-veg"))
+
+# Co-morbidity ------------------------------------------------------------
+
+# Prevalent comorbidity according to CMS
+dzvars <- c("cataract", "chronickidney", "copd", "diabetes", "glaucoma",
+            "hip_fracture", "depression", "osteoporosis", "ra_oa",  
+            "cancer_breast", "cancer_colorectal", "cancer_prostate", "cancer_lung", "cancer_endometrial",
+            "asthma", "hyperl", "hypert", "hypoth")
+dzvars <- paste0(toupper(dzvars), "_EVER")
+
+# Convert all comodidity ever variables to date
+test <- ahs_medic_inc2 %>% 
+  mutate(across(all_of(dzvars), ymd)) 
+
+find_prevalence <- function(var, data, start){
+  cc_var <- data[[var]]
+  strtdt  <- data[[start]]
+  out <- ifelse(cc_var <= strtdt, 1, 0)
+  out <- ifelse(is.na(cc_var), 0, out)
+  return(out)
+}
+
+dzdf <- as.data.frame(lapply(dzvars, find_prevalence, data = test, start = "qreturndate"))
+names(dzdf) <- paste0(dzvars, "_YN")
+dzdf <- as_tibble(dzdf)
+
+dzdf <- dzdf %>% 
+  mutate(como_depress  = DEPRESSION_EVER_YN,
+         como_diabetes = DIABETES_EVER_YN,
+         como_kidney   = CHRONICKIDNEY_EVER_YN,
+         como_hypoth   = HYPOTH_EVER_YN,
+         como_cancers  = ifelse(rowSums(.[grep("CANCER_", names(.))]) > 0, 1, 0),
+         como_disab    = ifelse(rowSums(.[grep("CATARACT|GLAU|HIP|OSTEO|RA_OA", names(.))]) > 0, 1, 0),
+         como_hthl     = ifelse(rowSums(.[grep("HYPERT|HYPERL",  names(.))]) > 0, 1, 0),
+         como_resp     = ifelse(rowSums(.[grep("COPD|ASTHMA",  names(.))]) > 0, 1, 0)) %>% 
+  mutate_at(vars(starts_with("como_")), factor, labels = c("No", "Yes")) %>% 
+  select(starts_with("como_"))
+
+ahs_medic_inc2 <- ahs_medic_inc2 %>% 
+  bind_cols(dzdf)
+
+modelvars <- c("bene_age_at_end_2020", 
+               "bene_sex_F", 
+               "rti_race3", 
+               "marital", 
+               "educyou", 
+               "vegstat", 
+               "bmi", 
+               "exercise", 
+               "sleephrs", 
+               "smokecat", 
+               "alccat", 
+               "como_depress",
+               "como_disab", 
+               "como_diabetes", 
+               "como_hthl", 
+               "como_resp", 
+               "como_kidney", 
+               "como_hypoth", 
+               "como_cancers",
+               "meat_gram",
+               "fish_gram",
+               "eggs_gram",
+               "dairy_gram"
+)
+
+# After excluding missing on covariates
+# there are 32,213 subjects
+complete_cases <- ahs_medic_inc2 %>% 
+  select(analysisid, all_of(modelvars)) %>% 
+  filter(complete.cases(.)) %>% 
+  select(analysisid)
+
+ahs_medic_inc2 <- ahs_medic_inc2 %>% 
+  inner_join(complete_cases, by = "analysisid")
+
+
+# dietary variables -------------------------------------------------------
+
+# Food group variables
+# Energy-adjust with zero partition
+# By default, variables are log-transformed (excluding zeros)
+kcal_adjust <- function(data, var, energy, log=TRUE){
+  if (missing(var))
+    stop("Need to specify variable for energy-adjustment.")
+  if (missing(energy))
+    stop("Need to specify energy intake.")
+  if (missing(data))
+    stop("Need to specify a data frame.")
+  df <- eval(substitute(data.frame(y = data$var, ea_y = data$var, kcal = data$energy)))
+  count_negative <- sum(df$y < 0, na.rm=TRUE)
+  if (count_negative > 0)
+    warning("There are negative values in variable.")
+  if(log) df$y[df$y > 0 & !is.na(df$y)] <- log(df$y[df$y > 0 & !is.na(df$y)])
+  mod <- lm(y ~ kcal, data=df[df$y != 0, ])
+  if(log){
+    ea <- exp(resid(mod) + mean(df$y[df$y != 0], na.rm=TRUE))
+    df$ea_y[!is.na(df$y) & df$y != 0] <- ea
+  }
+  else{
+    ea <- resid(mod) + mean(df$y[df$y != 0], na.rm=TRUE)
+    df$ea_y[!is.na(df$y) & df$y != 0] <- ea
+  }
+  return(df$ea_y)
+}
+
+ahs_medic_inc2$meat_gram_ea      <- kcal_adjust(meat_gram,  kcal, data = ahs_medic_inc2, log = TRUE)
+ahs_medic_inc2$fish_gram_ea      <- kcal_adjust(fish_gram,  kcal, data = ahs_medic_inc2, log = TRUE)
+ahs_medic_inc2$eggs_gram_ea      <- kcal_adjust(eggs_gram,  kcal, data = ahs_medic_inc2, log = TRUE)
+ahs_medic_inc2$dairy_gram_ea     <- kcal_adjust(dairy_gram, kcal, data = ahs_medic_inc2, log = TRUE)
+ahs_medic_inc2$nutsseeds_gram_ea <- kcal_adjust(nutsseeds_gram, kcal, data = ahs_medic_inc2, log = TRUE)
+
+# Create quantile groups
+# Specify p for other percentile groups
+cutQ <- function(x, p=0:4/4, na.rm=FALSE) cut(x, quantile(x, p, na.rm=na.rm), include.lowest=TRUE)
+
+# Quartiles for egg, dairy and nuts/seeds
+ea_diet_vars <- c("eggs_gram_ea", "dairy_gram_ea", "nutsseeds_gram_ea")
+get_percentile <- function(var, data = ahs_medic_inc2) cutQ(data[[var]], na.rm = TRUE, p = 0:4/4)
+test <- lapply(ea_diet_vars, get_percentile)
+names(test) <- paste0(ea_diet_vars, "_4")
+ahs_medic_inc2 <- cbind(ahs_medic_inc2, test)
+rm(test)
+
+ahs_medic_inc2 <- ahs_medic_inc2 %>% 
+  mutate(meat_gram_ea_4 = cut(meat_gram_ea, breaks = c(-Inf, 0, 11, 32, Inf), right = TRUE), 
+         fish_gram_ea_4 = cut(fish_gram_ea, breaks = c(-Inf, 0,  8.7, 17.4, Inf), right = TRUE))
+
+levels(ahs_medic_inc2$meat_gram_ea_4)  <- c("None", "<11 g/d", "11-<32 g/d", "32+ g/d")
+levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<8.7 g/d", "8.7-<17.4 g/d", "17.4+ g/d")
+levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("<3.6 g/d", "3.6-7.5 g/d", "7.5-<16 g/d", "16+ g/d")
+levels(ahs_medic_inc2$dairy_gram_ea_4) <- c("<30 g/d", "30-100 g/d", "100-<236 g/d", "236+ g/d")
+
+```
+
+* Other variables, including demographic, lifestyle, comorbidity, and dietary variables were defined as previously described
+  * (Will add these descriptions later)
+
+* Missing values in covariates
+  * There were n = 2806 subjects who has at least one missing value on covariates (such as marital status, education, exercise level, sleep hours, smoking and alcohol use, all of them come from AHS questionnaire). These subjects were excluded, resulting in n = 32,213.
+  * Among them, there are 11,668 incident cases (36.2%) of CVD
+
+* For those diagnosed with CVD, the mean age at diagnosis was 74.8 years (median 73.6 years)
+
+```{r descriptive_stratified, echo = FALSE}
+# Table 1 -----------------------------------------------------------------
+
+# Variables to be included
+tablevars <- c("agecat", 
+               # "bene_age_at_end_2008", 
+               "bene_age_at_end_2020", 
+               "bene_sex_F", 
+               "rti_race3", 
+               "marital", 
+               "educyou", 
+               "vegstat", 
+               "bmicat", 
+               "bmi", 
+               "exercise", 
+               "sleephrs", 
+               "smokecat", 
+               "alccat", 
+               "como_depress",
+               "como_disab", 
+               "como_diabetes", 
+               "como_hthl", 
+               "como_resp", 
+               "como_kidney", 
+               "como_hypoth", 
+               "como_cancers",
+               "meat_gram_ea_4",
+               "fish_gram_ea_4",
+               "eggs_gram_ea_4",
+               "dairy_gram_ea_4"
+               )
+
+ahs_medic_inc2 %>% 
+  mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
+  CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE) %>% 
+  print(showAllLevels = TRUE) %>% 
+  kableone()
+```
+
+* Will produce a similar table among those with hyperlipidemia...
+

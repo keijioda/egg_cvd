@@ -598,6 +598,10 @@ prev_cvd <- cvd_diag_date %>%
 
 ahs_medic2 %>% 
   anti_join(prev_cvd) %>% 
+  nrow()
+
+ahs_medic2 %>% 
+  anti_join(prev_cvd) %>% 
   group_by(CVD_YN) %>% 
   tally() %>% 
   mutate(pct = n / sum(n) * 100)
@@ -605,45 +609,37 @@ ahs_medic2 %>%
 # Start with all 5 conditions combined and then explore individual conditions as sensitivity analysis
 
 
-
-
-
-
-
-
-
-
-
 # Define variables for models ---------------------------------------------
 
 # Define ageout
-# If ALZH_DEMEN_EVER exists (incident cases), the use this diag date
+# If CVD_EVER exists (incident cases), the use this diag date
 # If non-case and BENE_DEATH_DT exists, then use this date died (censored)
 # Otherwise, use the end of BENE_ENROLLMT_REF_YR (year last seen)
-ahs_medic_inc2 <- ahs_medic_inc %>% 
+ahs_medic_inc <- ahs_medic2 %>% 
+  anti_join(prev_cvd) %>% 
   mutate(
     age_last_seen = time_length(interval(BENE_BIRTH_DT, make_date(BENE_ENROLLMT_REF_YR, 12, 31)), "year"),
     ageout = case_when(
-              ALZH_DEMEN_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, ALZH_DEMEN_EVER), "year"),
-              ALZH_DEMEN_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
-              ALZH_DEMEN_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
+              CVD_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, CVD_EVER), "year"),
+              CVD_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
+              CVD_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
     fuyear = ageout - agein
   )
 
-summary(ahs_medic_inc2$agein)
-summary(ahs_medic_inc2$ageout)
+summary(ahs_medic_inc$agein)
+summary(ahs_medic_inc$ageout)
 
-# Mean/median follow-up years: Mean 14.8 years, Median 16.5 years
-summary(ahs_medic_inc2$fuyear) %>% round(2)
+# Mean/median follow-up years: Mean 13.2 years, Median 15.7 years
+summary(ahs_medic_inc$fuyear) %>% round(2)
 
-# Age at diagnosis: Mean 83.2 years, Median 84.0 years
-ahs_medic_inc2 %>% 
-  filter(ALZH_DEMEN_YN == "Yes") %>% 
+# Age at diagnosis: Mean 75.0 years, Median 73.8 years
+ahs_medic_inc %>% 
+  filter(CVD_YN == "Yes") %>% 
   select(ageout) %>% 
   summary()
 
 # Factor gender, categorize age into age groups, recode RTI race, smoking, and drinking
-ahs_medic_inc2 <- ahs_medic_inc2 %>% 
+ahs_medic_inc2 <- ahs_medic_inc %>% 
   mutate(
     bene_sex_F = factor(SEX_IDENT_CD, labels = c("M", "F")),
     # bene_age_at_end_2008 = time_length(interval(BENE_BIRTH_DT, make_date(2008, 12, 31)), "year"),
@@ -666,8 +662,8 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
 # Co-morbidity ------------------------------------------------------------
 
 # Prevalent comorbidity according to CMS
-dzvars <- c("ami", "atrial_fib", "cataract", "chronickidney", "copd", "chf", "diabetes", "glaucoma",
-            "hip_fracture", "ischemicheart", "depression", "osteoporosis", "ra_oa", "stroke_tia", 
+dzvars <- c("cataract", "chronickidney", "copd", "diabetes", "glaucoma",
+            "hip_fracture", "depression", "osteoporosis", "ra_oa",  
             "cancer_breast", "cancer_colorectal", "cancer_prostate", "cancer_lung", "cancer_endometrial",
             "asthma", "hyperl", "hypert", "hypoth")
 dzvars <- paste0(toupper(dzvars), "_EVER")
@@ -694,7 +690,6 @@ dzdf <- dzdf %>%
          como_kidney   = CHRONICKIDNEY_EVER_YN,
          como_hypoth   = HYPOTH_EVER_YN,
          como_cancers  = ifelse(rowSums(.[grep("CANCER_", names(.))]) > 0, 1, 0),
-         como_cvd      = ifelse(rowSums(.[grep("AMI|ATRIAL|CHF|ISCHEMIC|STROKE", names(.))]) > 0, 1, 0),
          como_disab    = ifelse(rowSums(.[grep("CATARACT|GLAU|HIP|OSTEO|RA_OA", names(.))]) > 0, 1, 0),
          como_hthl     = ifelse(rowSums(.[grep("HYPERT|HYPERL",  names(.))]) > 0, 1, 0),
          como_resp     = ifelse(rowSums(.[grep("COPD|ASTHMA",  names(.))]) > 0, 1, 0)) %>% 
@@ -718,7 +713,6 @@ modelvars <- c("bene_age_at_end_2020",
                "como_depress",
                "como_disab", 
                "como_diabetes", 
-               "como_cvd", 
                "como_hthl", 
                "como_resp", 
                "como_kidney", 
@@ -735,7 +729,7 @@ ahs_medic_inc2 %>%
   sapply(\(x) sum(is.na(x)))
 
 # After excluding missing on covariates
-# there are 36,549 subjects
+# there are 32,213 subjects
 complete_cases <- ahs_medic_inc2 %>% 
   select(analysisid, all_of(modelvars)) %>% 
   filter(complete.cases(.)) %>% 
@@ -745,6 +739,13 @@ nrow(complete_cases)
 
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   inner_join(complete_cases, by = "analysisid")
+
+# Age at diagnosis: Mean 75.0 years, Median 73.8 years
+ahs_medic_inc2 %>% 
+  filter(CVD_YN == "Yes") %>% 
+  select(ageout) %>% 
+  summary()
+
 
 # dietary variables -------------------------------------------------------
 
@@ -824,11 +825,11 @@ table(cutQ(ahs_medic_inc2$meat_gram_ea[ahs_medic_inc2$meat_gram_ea > 0], na.rm =
 table(cut(ahs_medic_inc2$meat_gram_ea, breaks = c(-Inf, 0, 11, 32, Inf), right = TRUE)) %>% prop.table
 
 table(cutQ(ahs_medic_inc2$fish_gram_ea[ahs_medic_inc2$fish_gram_ea > 0], na.rm = TRUE, p = 0:3/3))
-table(cut(ahs_medic_inc2$fish_gram_ea, breaks = c(-Inf, 0, 8.6, 17.2, Inf), right = TRUE)) %>% prop.table
+table(cut(ahs_medic_inc2$fish_gram_ea, breaks = c(-Inf, 0, 8.7, 17.4, Inf), right = TRUE)) %>% prop.table
 
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   mutate(meat_gram_ea_4 = cut(meat_gram_ea, breaks = c(-Inf, 0, 11, 32, Inf), right = TRUE), 
-         fish_gram_ea_4 = cut(fish_gram_ea, breaks = c(-Inf, 0,  8.6, 17.2, Inf), right = TRUE))
+         fish_gram_ea_4 = cut(fish_gram_ea, breaks = c(-Inf, 0,  8.7, 17.4, Inf), right = TRUE))
 
 ahs_medic_inc2 %>% 
   as_tibble() %>% 
@@ -836,7 +837,7 @@ ahs_medic_inc2 %>%
   lapply(levels)
 
 levels(ahs_medic_inc2$meat_gram_ea_4)  <- c("None", "<11 g/d", "11-<32 g/d", "32+ g/d")
-levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<8.6 g/d", "8.6-<17.2 g/d", "17.2+ g/d")
+levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<8.7 g/d", "8.7-<17.4 g/d", "17.4+ g/d")
 levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("<3.6 g/d", "3.6-7.5 g/d", "7.5-<16 g/d", "16+ g/d")
 levels(ahs_medic_inc2$dairy_gram_ea_4) <- c("<30 g/d", "30-100 g/d", "100-<236 g/d", "236+ g/d")
 
@@ -860,7 +861,6 @@ tablevars <- c("agecat",
                "como_depress",
                "como_disab", 
                "como_diabetes", 
-               "como_cvd", 
                "como_hthl", 
                "como_resp", 
                "como_kidney", 
@@ -872,15 +872,19 @@ tablevars <- c("agecat",
                "dairy_gram_ea_4"
                )
 
-summary(ahs_medic_inc2$ALZH_DEMEN_YN)
+ahs_medic_inc2 %>% 
+  group_by(CVD_YN) %>% 
+  tally() %>% 
+  mutate(pct = n / sum(n) * 100)
+
 
 out <- ahs_medic_inc2 %>% 
-  mutate(ALZH_DEMEN_YN2 = fct_recode(ALZH_DEMEN_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
-  CreateTableOne(tablevars, strata = "ALZH_DEMEN_YN2", data = ., addOverall = TRUE)
+  mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
+  CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE)
 print(out, showAllLevels = TRUE)
 
 ahs_medic_inc2  %>% 
-  jstable::CreateTableOne2(strata = "ALZH_DEMEN_YN", 
+  jstable::CreateTableOne2(strata = "CVD_YN", 
                            vars = tablevars, 
                            addOverall = TRUE,
                            showAllLevels = TRUE,
@@ -890,11 +894,23 @@ ahs_medic_inc2  %>%
 sapply(ahs_medic_inc2[tablevars], function(x) sum(is.na(x)))
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 # Cox models --------------------------------------------------------------
 
 # Indep vars (will be age-adjusted)
 vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "vegstat3", "bmicat", "exercise", "sleephrs2", "smokecat", "alccat",
-          "como_depress", "como_disab", "como_diabetes", "como_cvd", "como_hthl", "como_resp", "como_kidney", "como_hypoth", "como_cancers")
+          "como_depress", "como_disab", "como_diabetes",  "como_hthl", "como_resp", "como_kidney", "como_hypoth", "como_cancers")
 
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   mutate(bene_sex_F = relevel(bene_sex_F, ref="F"),
