@@ -335,3 +335,83 @@ ahs_medic <- ahs_medic %>%
   * Medicare data include a variable (`VALID_DEATH_DT_SW`) indicating whether a beneficiary's day of death has been verified by the Social Security Administration or the Railroad Retirement Board.
   * There were 22 unverified death dates. Excluding these resulted n = 40,334.
 
+## Exploratory analysis
+
+```{r hyperlipidemia, include = FALSE}
+# Identify those with hyperlipidemia
+# Both prevalence and incidence
+ahs_medic <- ahs_medic %>% 
+  mutate(HYPERL_YN = ifelse(is.na(HYPERL_EVER), 0, 1),
+         HYPERL_YN = factor(HYPERL_YN, label = c("No", "Yes")),  
+         BENE_BIRTH_DT = ymd(BENE_BIRTH_DT),
+         BENE_DEATH_DT = ymd(BENE_DEATH_DT),
+         HYPERL_EVER = ymd(HYPERL_EVER))
+
+# There are 21,635 hyperlipidemia cases (53.6%)
+ahs_medic %>%
+  group_by(HYPERL_YN) %>% 
+  tally() %>% 
+  mutate(pct = n / sum(n) * 100)
+
+# Find prevalent cases
+ahs_medic %>% 
+  filter(HYPERL_YN == "Yes") %>% 
+  mutate(HYPERL_EVER = ymd(HYPERL_EVER)) %>%
+  filter(HYPERL_EVER < qreturndate) %>% 
+  select(analysisid, HYPERL_YN, qreturndate, HYPERL_EVER)
+
+hyperl_diag_date <- ahs_medic %>% 
+  filter(HYPERL_YN == "Yes") %>% 
+  mutate(HYPERL_EVER = ymd(HYPERL_EVER)) %>%
+  mutate(DateDiff = interval(qreturndate, HYPERL_EVER),
+         DateDiff_days = as.numeric(DateDiff, 'days'), 
+         DateDiff_months = as.numeric(DateDiff, 'months'), 
+         DateDiff_years = as.numeric(DateDiff, 'years')) 
+
+# How many cases in which qreturndate > diagnosis date?
+# 6,491 such cases
+hyperl_diag_date %>% 
+  filter(DateDiff_days < 0) %>% 
+  select(HYPERL_YN, HYPERL_EVER, qreturndate, DateDiff_days, DateDiff_months, DateDiff_years)
+
+# How many cases who were diagnosed within 6 months after qreturndate?
+# 647 cases
+hyperl_diag_date %>% 
+  filter(between(DateDiff_months, 0, 6)) %>% 
+  select(HYPERL_YN, qreturndate, HYPERL_EVER, DateDiff_days, DateDiff_months, DateDiff_years)
+
+# Considering 6 months as a cut-off, there are 7,138 prevalent cases
+hyperl_diag_date %>% 
+  filter(DateDiff_months <= 6) %>% 
+  select(BENE_ID, analysisid, HYPERL_YN, qreturndate, HYPERL_EVER, DateDiff_days, DateDiff_months, DateDiff_years)
+```
+
+### Hyperlipidemia cases
+* There are 21,635 (53.6%) subjects who have developed hyperlipidemia before the end of year 2020
+* Among them, there are 6,491 subjects whose diagnosis date precedes the enrollment into AHS-2
+* Plus, there are 647 subjects who were diagnosed within 6 months after the enrollment
+* Thus, considering 6 months as a cut-off, there are 7,138 prevalent cases (33.0% among all hyperlipidemia cases)
+* [To consider]
+    * We could use the status of hyperlipidemia (yes/no) as time-dependent variable in the cox model
+    * Or include into analysis anyone with the diagnoses regardless of prevalence/incidence? 
+
+### CVD cases
+* The medicare data include five relevant diagnosis: Ischemic HD, stroke/TIA, acute MI, CHF, and atrial fibrillation
+* For each of these 5 conditions, the number of cases (prevalence and incidence) is shown below:
+  
+```{r five_cvd_cc, echo = FALSE}
+cvd_vars <- c("ISCHEMICHEART_EVER", "STROKE_TIA_EVER", "AMI_EVER", "CHF_EVER", "ATRIAL_FIB_EVER")
+
+cvd_df <- ahs_medic %>% 
+  select(all_of(cvd_vars)) %>% 
+  mutate_all(ymd) %>% 
+  mutate_all(\(x) ifelse(is.na(x), "No", "Yes"))
+
+CreateTableOne(cvd_vars, data = cvd_df) %>% kableone()
+```
+
+* If we define CVD cases as any one of the 5 conditions:
+  * There are 18,181 cases (45.1%) of CVDs
+  * Among them, there are 5,315 prevalent cases and 12,866 incident cases
+
+* [Approach] Start with all 5 conditions combined and then explore individual conditions as sensitivity analysis

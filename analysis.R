@@ -557,9 +557,8 @@ cvd_df <- ahs_medic %>%
   mutate_all(ymd) %>% 
   mutate_all(\(x) ifelse(is.na(x), "No", "Yes"))
 
-cvd_vars %>% 
-  lapply(\(x) group_by(cvd_df, .data[[x]]) %>% tally() %>% mutate(pct = n / sum(n) * 100))
-
+# Number of cases for each condition
+CreateTableOne(cvd_vars, data = cvd_df)
 
 # Based on ischemic HD, stroke, MI, CHF and Afib
 ahs_medic2 <- ahs_medic %>% 
