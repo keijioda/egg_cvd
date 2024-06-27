@@ -661,5 +661,8 @@ ahs_medic_inc2 %>%
   kableone()
 ```
 
-* Will produce a similar table among those with hyperlipidemia...
+## To do
 
+* Remove hypertension/hyperlipidemia from the comorbidity variables
+* See how many of CVD cases have multiple conditions
+* Run the descriptive table only among those with hyperlipidemia

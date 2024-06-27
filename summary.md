@@ -194,4 +194,8 @@ Egg CVD study
 |                                  | 100-\<236 g/d  | 8053 (25.0)  | 5147 (25.1)  | 2906 (24.9)  |         |      |
 |                                  | 236+ g/d       | 8053 (25.0)  | 5110 (24.9)  | 2943 (25.2)  |         |      |
 
-- Will produce a similar table among those with hyperlipidemia…
+## To do
+
+- Remove hypertension/hyperlipidemia from the comorbidity variables
+- See how many of CVD cases have multiple conditions
+- Run the descriptive table only among those with hyperlipidemia
