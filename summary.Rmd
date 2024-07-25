@@ -690,6 +690,10 @@ ahs_medic_inc2 %>%
 
 ## To do
 
-* Remove hypertension/hyperlipidemia from the comorbidity variables -- Done
-* See how many of CVD cases have multiple conditions -- Done
-* Run the descriptive table only among those with hyperlipidemia -- Done
+* Let's move on to Cox models: Modeling strategy:
+  * Model with dietary pattern, adjusting for demographics and lifestyle variables
+  * Model including meat and egg without dietary pattern, adjusting for others
+  * Examine meat/egg interaction if necessary
+  * Adding further diaetary variables as covariates?
+  
+* Depending on results, we could change CVD criteria?
