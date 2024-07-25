@@ -408,6 +408,21 @@ cvd_df <- ahs_medic %>%
   mutate_all(\(x) ifelse(is.na(x), "No", "Yes"))
 
 CreateTableOne(cvd_vars, data = cvd_df) %>% kableone()
+```
+
+* Many of these CVD cases have more than one of the 5 conditions. See below for the frequency table of CVD conditions:
+
+```{r n_cvd_cc, echo = FALSE}
+# Number of CVDs per subject
+ahs_medic %>% 
+  select(all_of(cvd_vars)) %>% 
+  mutate_all(ymd) %>% 
+  mutate_all(\(x) ifelse(is.na(x), 0, 1)) %>% 
+  mutate(n_CVDs = rowSums(across(all_of(cvd_vars)))) %>% 
+  group_by(n_CVDs) %>%
+  tally() %>%
+  mutate(pct = n / sum(n)) %>%
+  knitr::kable()
 
 # Based on ischemic HD, stroke, MI, CHF and Afib
 ahs_medic2 <- ahs_medic %>% 
@@ -533,7 +548,7 @@ modelvars <- c("bene_age_at_end_2020",
                "como_depress",
                "como_disab", 
                "como_diabetes", 
-               "como_hthl", 
+               # "como_hthl", 
                "como_resp", 
                "como_kidney", 
                "como_hypoth", 
@@ -643,7 +658,7 @@ tablevars <- c("agecat",
                "como_depress",
                "como_disab", 
                "como_diabetes", 
-               "como_hthl", 
+               # "como_hthl", 
                "como_resp", 
                "como_kidney", 
                "como_hypoth", 
@@ -661,8 +676,20 @@ ahs_medic_inc2 %>%
   kableone()
 ```
 
+* Let's look at the same descriptive table only among those with hyperlipidemia. Among n = 32,213, there are 15,601 subjects (48.4%) have diagnosis of hyperlipidemia either before the enrollment or any time during the follow-up.
+  * Among these, there are 9,364 incident cases (60.0%) of CVD.
+
+```{r descriptive_stratified_hyperlipidemia, echo = FALSE}
+ahs_medic_inc2 %>% 
+  filter(HYPERL_YN == "Yes") %>% 
+  mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
+  CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE) %>% 
+  print(showAllLevels = TRUE) %>% 
+  kableone()
+```
+
 ## To do
 
-* Remove hypertension/hyperlipidemia from the comorbidity variables
-* See how many of CVD cases have multiple conditions
-* Run the descriptive table only among those with hyperlipidemia
+* Remove hypertension/hyperlipidemia from the comorbidity variables -- Done
+* See how many of CVD cases have multiple conditions -- Done
+* Run the descriptive table only among those with hyperlipidemia -- Done

@@ -560,6 +560,16 @@ cvd_df <- ahs_medic %>%
 # Number of cases for each condition
 CreateTableOne(cvd_vars, data = cvd_df)
 
+# Number of CVDs per subject
+ahs_medic %>% 
+  select(all_of(cvd_vars)) %>% 
+  mutate_all(ymd) %>% 
+  mutate_all(\(x) ifelse(is.na(x), 0, 1)) %>% 
+  mutate(n_CVDs = rowSums(across(all_of(cvd_vars)))) %>% 
+  group_by(n_CVDs) %>% 
+  tally() %>% 
+  mutate(pct = n / sum(n))
+
 # Based on ischemic HD, stroke, MI, CHF and Afib
 ahs_medic2 <- ahs_medic %>% 
   # mutate(CVD_EVER = pmin(ISCHEMICHEART_EVER, STROKE_TIA_EVER, AMI_EVER, na.rm = TRUE),
@@ -713,7 +723,7 @@ modelvars <- c("bene_age_at_end_2020",
                "como_depress",
                "como_disab", 
                "como_diabetes", 
-               "como_hthl", 
+               # "como_hthl", 
                "como_resp", 
                "como_kidney", 
                "como_hypoth", 
@@ -861,7 +871,7 @@ tablevars <- c("agecat",
                "como_depress",
                "como_disab", 
                "como_diabetes", 
-               "como_hthl", 
+               # "como_hthl", 
                "como_resp", 
                "como_kidney", 
                "como_hypoth", 
@@ -893,9 +903,17 @@ ahs_medic_inc2  %>%
 # Check numbers of missing
 sapply(ahs_medic_inc2[tablevars], function(x) sum(is.na(x)))
 
+# Same Table 1, but only among those with hyperlipidemia
+ahs_medic_inc2 %>% 
+  group_by(HYPERL_YN) %>% 
+  tally() %>% 
+  mutate(pct = n / sum(n))
 
-
-
+out <- ahs_medic_inc2 %>% 
+  filter(HYPERL_YN == "Yes") %>% 
+  mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
+  CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE)
+print(out, showAllLevels = TRUE)
 
 
 
