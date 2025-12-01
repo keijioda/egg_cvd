@@ -205,6 +205,11 @@ ahsdiet <- ahsdiet0 %>% bind_rows(ahsdiet_ex)
 names(ahsdiet) <- tolower(names(ahsdiet))
 ahsdiet$bmi <- NULL
 
+# Remove those with "cannot use diet"
+# Yields N = 95,344
+ahsdiet <- ahsdiet %>% 
+  filter(x_cannotusediet == 0)
+
 # Merge AHS data with Medicare --------------------------------------------
 
 # Extract data of the last seen: MSBF and CC files  
@@ -217,78 +222,52 @@ cc_last_seen <- all_cc_long %>%
   slice(n())
 
 # Merge AHS data with Medicare
-# Results in n = 44,384 subjects
+# Results in n = 44,159 subjects
 ahs_medic <- msbf_last_seen %>% 
   inner_join(cc_last_seen %>% select(-BENE_ENROLLMT_REF_YR), by = "BENE_ID") %>%
   inner_join(ahs_dup_removed %>% 
                rename(BENE_ID = Bene_ID) %>% 
                mutate(analysisid = parse_number(AnalysisID)), by = "BENE_ID") %>% 
   inner_join(ahsdata, by = "analysisid") %>% 
-  left_join(ahsdiet, by = "analysisid") %>% 
+  # left_join(ahsdiet, by = "analysisid") %>% 
+  inner_join(ahsdiet, by = "analysisid") %>% 
   ungroup()
+
+# Opt-outs: n = 395
+optout <- read_csv("./Data/OptOutAnalysisIDs.csv") %>% 
+  setNames("analysisid")
+
+# Remove opt-outs, yielding n = 44,013
+ahs_medic <- ahs_medic %>% 
+  anti_join(optout, by = "analysisid")
 
 
 # Apply inclusion/exclusion criteria --------------------------------------
 
-# Remove if qreturndate is missing -- 25 subjects
-ahs_medic %>%
-  summarize(n = sum(is.na(qreturndate)))
-
-# Results in n = 44,359 subjects
-ahs_medic <- ahs_medic %>% 
-  filter(!is.na(qreturndate))
-
-# Remove if AGE_AT_END_REF_YR < 65 (n = 1545)
-# Results in n = 42,814
-ahs_medic %>% 
-  filter(AGE_AT_END_REF_YR < 65) %>% 
-  nrow()
-  
+# Remove if AGE_AT_END_REF_YR < 65 (n = 1537)
+# Results in n = 42,476
 ahs_medic <- ahs_medic %>% 
   filter(AGE_AT_END_REF_YR >= 65)
 
-# Remove if BMI is missing (n = 1174) or extreme (n = 148)
-# Resuts in n = 41,492
-ahs_medic %>% filter(is.na(bmi)) %>% tally()
-ahs_medic %>% filter(bmi < 16 | bmi > 60) %>% tally()
-ahs_medic %>% filter(bmi < 16 | bmi > 60 | is.na(bmi)) %>% tally()
+# Remove if BMI is missing (n = 1151) or extreme (n = 146)
+# Resuts in n = 41,174
 ahs_medic <- ahs_medic %>% 
   filter(bmi >= 16, bmi <= 60)
 
-# Exclude missing kcal/diet (n = 97) or extreme kcal intake (n = 1039)
-# Results in n = 40,356
-ahs_medic %>% filter(is.na(kcal)) %>% tally()
-ahs_medic %>% filter(!(kcal > 500 & kcal < 4500)) %>% tally()
+# Exclude extreme kcal intake (n = 1030)
+# Results in n = 40,149
 ahs_medic <- ahs_medic %>% 
   filter(kcal > 500 & kcal < 4500)
 
-# Check deaths
-ahs_medic %>% 
-  filter(!is.na(BENE_DEATH_DT)) %>% 
-  select(BENE_DEATH_DT, deceased) %>% 
-  filter(BENE_DEATH_DT != deceased) %>% 
-  print(n = Inf)
-
-# Do not use "deceased" variable!
-ahs_medic %>% 
-  filter(!is.na(deceased), !is.na(HYPERL_EVER)) %>% 
-  select(HYPERL_EVER, BENE_DEATH_DT, deceased) %>% 
-  filter(deceased < HYPERL_EVER)
-
 # Need to exclude unverified deaths
 # There are 22 unverified deaths
-ahs_medic %>% 
-  filter(!is.na(BENE_DEATH_DT)) %>% 
-  group_by(VALID_DEATH_DT_SW) %>% 
-  tally()
-
 unverified_deaths <- ahs_medic %>% 
   filter(!is.na(BENE_DEATH_DT)) %>%
   filter(is.na(VALID_DEATH_DT_SW)) %>% 
   select(analysisid)
 
 # Exclude unverified deaths
-# Yields n = 40,334
+# Yields n = 40,127
 ahs_medic <- ahs_medic %>% 
   anti_join(unverified_deaths, by = "analysisid") 
 
@@ -317,23 +296,25 @@ ahs_medic <- ahs_medic %>%
     * Gender/DOB mismatch with AHS-2 data
     * Dupulicate beneficiary IDs and SSNs
 
-* AHS-2, n = 96,144
-  * Baseline data
-  * Dietary data
+* AHS-2
+  * Baseline data: n = 96,144
+  * Dietary data: n = 95,344
   
-* After merging Medicare and AHS-2 data, there were n = 44,359 subjects.
+* After merging Medicare and AHS-2 data, there were n = 44,159 subjects.
+
+* Among n = 44,159 subjects, there were n = 146 subjects who opted out from the study. Excluding these subjects yielded n = 44,013.
 
 ## Inclusion/exclusion criteria
 
-* Medicare beneficiaries who did not reach the age of 65 between 2008 and 2020 (e.g., younger beneficiaries with disabilities or end-stage renal disease) were excluded (n = 1545), resulting n = 42,814.
+* Medicare beneficiaries who did not reach the age of 65 between 2008 and 2020 (e.g., younger beneficiaries with disabilities or end-stage renal disease) were excluded (n = 1537), resulting n = 42,476.
 
-* n = 1322 subjects with missing BMI or extreme BMI (<16 or >60), according to AHS questionnaire, were excluded, resulting n = 41,492.
+* n = 1302 subjects with missing BMI or extreme BMI (<16 or >60), according to AHS questionnaire, were excluded, resulting n = 41,174.
 
-* n = 1136 subjects with extreme calorie intake (<500 or >4500 kcal) were excluded, resulting n = 40,356.
+* n = 1030 subjects with extreme calorie intake (<500 or >4500 kcal) were excluded, resulting n = 40,149.
 
 * Unverified dates of deaths
   * Medicare data include a variable (`VALID_DEATH_DT_SW`) indicating whether a beneficiary's day of death has been verified by the Social Security Administration or the Railroad Retirement Board.
-  * There were 22 unverified death dates. Excluding these resulted n = 40,334.
+  * There were 22 unverified death dates. Excluding these resulted n = 40,127.
 
 ## Exploratory analysis
 
@@ -347,7 +328,7 @@ ahs_medic <- ahs_medic %>%
          BENE_DEATH_DT = ymd(BENE_DEATH_DT),
          HYPERL_EVER = ymd(HYPERL_EVER))
 
-# There are 21,635 hyperlipidemia cases (53.6%)
+# There are 21,530 hyperlipidemia cases (53.7%)
 ahs_medic %>%
   group_by(HYPERL_YN) %>% 
   tally() %>% 
@@ -369,13 +350,13 @@ hyperl_diag_date <- ahs_medic %>%
          DateDiff_years = as.numeric(DateDiff, 'years')) 
 
 # How many cases in which qreturndate > diagnosis date?
-# 6,491 such cases
+# 6,464 such cases
 hyperl_diag_date %>% 
   filter(DateDiff_days < 0) %>% 
   select(HYPERL_YN, HYPERL_EVER, qreturndate, DateDiff_days, DateDiff_months, DateDiff_years)
 
 # How many cases who were diagnosed within 6 months after qreturndate?
-# 647 cases
+# 644 cases
 hyperl_diag_date %>% 
   filter(between(DateDiff_months, 0, 6)) %>% 
   select(HYPERL_YN, qreturndate, HYPERL_EVER, DateDiff_days, DateDiff_months, DateDiff_years)
@@ -387,10 +368,10 @@ hyperl_diag_date %>%
 ```
 
 ### Hyperlipidemia cases
-* There are 21,635 (53.6%) subjects who have developed hyperlipidemia before the end of year 2020
-* Among them, there are 6,491 subjects whose diagnosis date precedes the enrollment into AHS-2
-* Plus, there are 647 subjects who were diagnosed within 6 months after the enrollment
-* Thus, considering 6 months as a cut-off, there are 7,138 prevalent cases (33.0% among all hyperlipidemia cases)
+* There are 21,530 (53.7%) subjects who have developed hyperlipidemia before the end of year 2020
+* Among them, there are 6,464 subjects whose diagnosis date precedes the enrollment into AHS-2
+* Plus, there are 644 subjects who were diagnosed within 6 months after the enrollment
+* Thus, considering 6 months as a cut-off, there are 7,108 prevalent cases (33.0% among all hyperlipidemia cases)
 * [To consider]
     * We could use the status of hyperlipidemia (yes/no) as time-dependent variable in the cox model
     * Or include into analysis anyone with the diagnoses regardless of prevalence/incidence? 
@@ -441,16 +422,16 @@ cvd_diag_date <- ahs_medic2 %>%
          DateDiff_years = as.numeric(DateDiff, 'years')) 
 
 # How many cases in which qreturndate > diagnosis date?
-# 5,315 such cases
+# 5,297 such cases
 prev_cvd <- cvd_diag_date %>% 
-  filter(DateDiff_days < 0) %>% 
+  filter(DateDiff_days <= 0) %>% 
   select(analysisid)
 ```
 
 * If we define CVD cases as any one of the 5 conditions:
-  * There are 18,181 cases (45.1%) of CVDs
-  * Among them, there are 5,315 prevalent cases and 12,866 incident cases
-  * When the prevalent CVD cases were excluded, we have an analytic sample of n = 35,019 with 12,866 incident CVD cases (36.7%).
+  * There are 18,105 cases (45.1%) of CVDs
+  * Among them, there are 5,297 prevalent cases and 12,808 incident cases
+  * When the prevalent CVD cases were excluded, we have an analytic sample of n = 34,830 with 12,808 incident CVD cases (36.8%).
 
 * [Approach] Start with all 5 conditions combined and then explore individual conditions as sensitivity analysis
 
@@ -500,7 +481,7 @@ ahs_medic_inc2 <- ahs_medic_inc %>%
 dzvars <- c("cataract", "chronickidney", "copd", "diabetes", "glaucoma",
             "hip_fracture", "depression", "osteoporosis", "ra_oa",  
             "cancer_breast", "cancer_colorectal", "cancer_prostate", "cancer_lung", "cancer_endometrial",
-            "asthma", "hyperl", "hypert", "hypoth")
+            "asthma", "hyperl", "hypert", "hypoth", "anemia")
 dzvars <- paste0(toupper(dzvars), "_EVER")
 
 # Convert all comodidity ever variables to date
@@ -524,6 +505,9 @@ dzdf <- dzdf %>%
          como_diabetes = DIABETES_EVER_YN,
          como_kidney   = CHRONICKIDNEY_EVER_YN,
          como_hypoth   = HYPOTH_EVER_YN,
+         como_anemia   = ANEMIA_EVER_YN,
+         como_hypert   = HYPERT_EVER_YN,
+         como_hyperl   = HYPERL_EVER_YN,
          como_cancers  = ifelse(rowSums(.[grep("CANCER_", names(.))]) > 0, 1, 0),
          como_disab    = ifelse(rowSums(.[grep("CATARACT|GLAU|HIP|OSTEO|RA_OA", names(.))]) > 0, 1, 0),
          como_hthl     = ifelse(rowSums(.[grep("HYPERT|HYPERL",  names(.))]) > 0, 1, 0),
@@ -550,6 +534,7 @@ modelvars <- c("bene_age_at_end_2020",
                "como_diabetes", 
                # "como_hthl", 
                "como_resp", 
+               "como_anemia", 
                "como_kidney", 
                "como_hypoth", 
                "como_cancers",
@@ -560,7 +545,7 @@ modelvars <- c("bene_age_at_end_2020",
 )
 
 # After excluding missing on covariates
-# there are 32,213 subjects
+# there are 32,045 subjects
 complete_cases <- ahs_medic_inc2 %>% 
   select(analysisid, all_of(modelvars)) %>% 
   filter(complete.cases(.)) %>% 
@@ -632,8 +617,8 @@ levels(ahs_medic_inc2$dairy_gram_ea_4) <- c("<30 g/d", "30-100 g/d", "100-<236 g
   * (Will add these descriptions later)
 
 * Missing values in covariates
-  * There were n = 2806 subjects who has at least one missing value on covariates (such as marital status, education, exercise level, sleep hours, smoking and alcohol use, all of them come from AHS questionnaire). These subjects were excluded, resulting in n = 32,213.
-  * Among them, there are 11,668 incident cases (36.2%) of CVD
+  * There were n = 2785 subjects who has at least one missing value on covariates (such as marital status, education, exercise level, sleep hours, smoking and alcohol use, all of them come from AHS questionnaire). These subjects were excluded, resulting in n = 32,045.
+  * Among them, there are 11,619 incident cases (36.3%) of CVD
 
 * For those diagnosed with CVD, the mean age at diagnosis was 74.8 years (median 73.6 years)
 
@@ -660,6 +645,7 @@ tablevars <- c("agecat",
                "como_diabetes", 
                # "como_hthl", 
                "como_resp", 
+               "como_anemia", 
                "como_kidney", 
                "como_hypoth", 
                "como_cancers",
@@ -676,8 +662,8 @@ ahs_medic_inc2 %>%
   kableone()
 ```
 
-* Let's look at the same descriptive table only among those with hyperlipidemia. Among n = 32,213, there are 15,601 subjects (48.4%) have diagnosis of hyperlipidemia either before the enrollment or any time during the follow-up.
-  * Among these, there are 9,364 incident cases (60.0%) of CVD.
+* Let's look at the same descriptive table only among those with hyperlipidemia. Among n = 32,045, there are 15,522 subjects (48.4%) have diagnosis of hyperlipidemia either before the enrollment or any time during the follow-up.
+  * Among these, there are 9,321 incident cases (60.0%) of CVD.
 
 ```{r descriptive_stratified_hyperlipidemia, echo = FALSE}
 ahs_medic_inc2 %>% 
@@ -697,3 +683,12 @@ ahs_medic_inc2 %>%
   * Adding further diaetary variables as covariates?
   
 * Depending on results, we could change CVD criteria?
+  * Get HRs for each of CVD criteria (Ischemic HD, stroke/TIA, aMI, CHF, and afib)
+  * For stroke/TIA -- see how vegan's HR changes
+
+* Need to estimate HRs for each level of meat or egg
+  * HRs for meat at each level of egg intake
+  * HRs for egg at each level of meat intake
+  * "Regular" meat or egg intake can be considered as the highest intake group in our sample?
+  * "Low" meat or egg intake being the lowest or 2nd lowest group?
+
