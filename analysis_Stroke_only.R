@@ -546,6 +546,7 @@ summary(ahs_medic_inc$ageout)
 
 # Mean/median follow-up years: Mean 16.4 years, Median 18.3 years
 summary(ahs_medic_inc$fuyear) %>% round(2)
+sum(ahs_medic_inc$fuyear)
 
 # Age at diagnosis: Mean 80.8 years, Median 81.1 years
 ahs_medic_inc %>% 
@@ -728,7 +729,7 @@ tablevars <- c("agecat",
                "como_kidney", 
                "como_hypoth", 
                "como_cancers",
-               "eggs_gram_ea_4",
+               # "eggs_gram_ea_4",
                "eggs_gram_ea",
                "meat_gram_ea_4",
                "meat_gram_ea",
@@ -755,22 +756,27 @@ ahs_medic_inc2 %>%
   tally() %>% 
   mutate(pct = n / sum(n) * 100)
 
-out <- ahs_medic_inc2 %>% 
-  mutate(STRK_YN2 = fct_recode(STRK_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
-  CreateTableOne(tablevars, strata = "STRK_YN2", data = ., addOverall = TRUE)
-print(out, showAllLevels = TRUE)
+ahs_medic_inc2 %>% 
+  CreateTableOne(tablevars, strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
+  print(showAllLevels = TRUE, noSpaces = TRUE, printToggle = FALSE) %>% 
+  write.csv(file = "Desc_Tab_by_egg.csv")
+
+# out <- ahs_medic_inc2 %>% 
+#   mutate(STRK_YN2 = fct_recode(STRK_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
+#   CreateTableOne(tablevars, strata = "STRK_YN2", data = ., addOverall = TRUE)
+# print(out, showAllLevels = TRUE)
 
 # Same Table 1, but only among those with hyperlipidemia
-ahs_medic_inc2 %>% 
-  group_by(HYPERL_YN) %>% 
-  tally() %>% 
-  mutate(pct = n / sum(n))
-
-out <- ahs_medic_inc2 %>% 
-  filter(HYPERL_YN == "Yes") %>% 
-  mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
-  CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE)
-print(out, showAllLevels = TRUE)
+# ahs_medic_inc2 %>% 
+#   group_by(HYPERL_YN) %>% 
+#   tally() %>% 
+#   mutate(pct = n / sum(n))
+# 
+# out <- ahs_medic_inc2 %>% 
+#   filter(HYPERL_YN == "Yes") %>% 
+#   mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
+#   CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE)
+# print(out, showAllLevels = TRUE)
 
 # Cox models --------------------------------------------------------------
 
@@ -779,7 +785,7 @@ print(out, showAllLevels = TRUE)
 #           "como_depress", "como_disab", "como_diabetes",  "como_resp", "como_anemia", "como_kidney", "como_hypoth", "como_cancers")
 
 # Indep vars (will be age-adjusted)
-vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "bmicat", "exercise", "sleephrs2", "smokecat", "alccat",
+vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "bmicat", "exercise", "sleephrs2", "smokecat6", "alccat",
           "hyperl",
           # "como_hyperl",
           "como_hypert", "como_resp",
@@ -806,15 +812,6 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
          kcal100    = kcal / 100)
          # vegstat3   = fct_collapse(vegstat2, "Non-veg" = c("Non-veg", "Semi")))
 
-# CVD conditions, %:
-# Ischemic, CHF, AFib, Stroke, aMI
-ahs_medic_inc2 %>% 
-  select(all_of(cvd_vars)) %>% 
-  mutate_all(ymd) %>% 
-  mutate_all(\(x) ifelse(is.na(x), "No", "Yes")) %>% 
-  CreateTableOne(cvd_vars, data = .)
-
-
 # Convert to data in time-dependent form
 ahs_medic_inc2_td <- tmerge(ahs_medic_inc2, ahs_medic_inc2, id=analysisid, 
                tstart = agein, tstop = ageout, hyperl = tdc(hyperl_age))
@@ -824,13 +821,13 @@ ahs_medic_inc2_td %>%
   as_tibble() %>% 
   # filter(HYPERL_YN == "No") %>%
   filter(HYPERL_YN == "Yes") %>%
-  select(analysisid, tstart, tstop, inc_CVD, hyperl_age, hyperl, HYPERL_EVER, CVD_EVER)
+  select(analysisid, tstart, tstop, inc_STRK, hyperl_age, hyperl, HYPERL_EVER, STROKE_TIA_EVER)
 
 ahs_medic_inc2_td %>% 
   as_tibble() %>% 
   filter(HYPERL_YN == "Yes") %>%
   filter(hyperl_age < agein) %>%
-  select(analysisid, agein, tstart, tstop, inc_CVD, hyperl_age, hyperl, HYPERL_EVER, CVD_EVER)
+  select(analysisid, agein, tstart, tstop, inc_STRK, hyperl_age, hyperl, HYPERL_EVER, STROKE_TIA_EVER)
 
 # Cox proportinal hazards model
 coxm <- function(var, dsn = ahs_medic_inc2_td){
@@ -871,7 +868,7 @@ out
 
 # Multivariable Cox model
 mv_mod <- coxph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
-                  bmicat + exercise + sleephrs2 + smokecat + alccat + hyperl + 
+                  bmicat + exercise + sleephrs2 + smokecat6 + alccat + hyperl + 
                   # kcal100 + egg_freq + hyperl * egg_freq, data = ahs_medic_inc2_td, method = "efron")
                   kcal100 + eggs_gram_ea_4 + hyperl * eggs_gram_ea_4, data = ahs_medic_inc2_td, method = "efron")
 
@@ -1011,19 +1008,16 @@ bind_rows(
 # Testing for 3-way interaction
 # Not significant
 summary(mv_mod3)
-update(mv_mod3, .~. + hyperl * meat_gram_ea_4 * egg_freq) %>% anova()
 update(mv_mod3, .~. + hyperl * meat_gram_ea_4 * eggs_gram_ea_4) %>% anova()
 
 # Remove 3-way interaction
 # Keep hyperl x mean, egg x meat
 # hyperl x egg, hyperl x meat both not significant
-update(mv_mod3, .~. + hyperl * meat_gram_ea + egg_freq * meat_gram_ea) %>% anova()
 update(mv_mod3, .~. + hyperl * meat_gram_ea + eggs_gram_ea_4 * meat_gram_ea) %>% anova()
 
 # keep only egg x meat
 # Model with meat x egg interaction
 summary(mv_mod3)
-mv_mod4 <- update(mv_mod3, .~. - hyperl:egg_freq + meat_gram_ea_4 * egg_freq)
 mv_mod4 <- update(mv_mod3, .~. - hyperl:eggs_gram_ea_4 + meat_gram_ea_4 * eggs_gram_ea_4)
 mv_mod4 <- update(mv_mod3, .~. -hyperl - hyperl:eggs_gram_ea_4 + como_hyperl + meat_gram_ea_4 * eggs_gram_ea_4)
 mv_mod4 %>% anova()

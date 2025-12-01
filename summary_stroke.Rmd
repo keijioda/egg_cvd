@@ -515,7 +515,7 @@ tablevars <- c("agecat",
                "como_kidney", 
                "como_hypoth", 
                "como_cancers",
-               "eggs_gram_ea_4",
+               # "eggs_gram_ea_4",
                "eggs_gram_ea",
                "meat_gram_ea_4",
                "meat_gram_ea",
@@ -543,3 +543,25 @@ ahs_medic_inc2 %>%
   kableone()
 
 ```
+
+## Cox models
+
+* To examine risk factors associated with incident stroke/TIA, we employed the Cox proportional hazards model with attained age as the time scale
+  * Age at entry was calculated based on the return date of AHS-2 questionnaire
+  * Those who died during the follow-up were censored at the date of death verified in Medicare data
+  * Those who were diagnosed with stroke/TIA after the study enrollment were identified as incident cases and their age at diagnosis was calculated. 
+    * The mean follow-up years was 16.4 years (median 18.3 years)
+    * The total person-years of follow-up was 640,424 years
+  * The main exposure variable of interest was energy-adjusted egg intake, gram/day. Subjects were classified into 4 egg intake groups as shown in the descriptive table
+
+* Hyperlipidemia as time-dependent variable
+  * No significant interaction with egg intake
+  * The time-dependent variable was dropped
+
+* There were no significant interaction between egg intake and meat intake
+  * The interaction term was dropped
+
+* Negative association with egg intake
+* Positive association with meat intake
+* Check the linearity on egg and meat intake?
+* Models - what covariates to be included?
