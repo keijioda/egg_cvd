@@ -482,12 +482,19 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
 levels(ahs_medic_inc2$meat_gram_ea_4)  <- c("None", "<11 g/d", "11-<33 g/d", "33+ g/d")
 levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<9 g/d", "9-<18 g/d", "18+ g/d")
 levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("None", "<4.5 g/d", "4.5-<16.5 g/d", "16.5+ g/d")
+levels(ahs_medic_inc2$alldairy2_gram_ea_4) <- c("None", "<50 g/d", "50-<180 g/d", "180+ g/d")
+levels(ahs_medic_inc2$totalveg_gram_ea_4) <- c("<185 g/d", "185-<270 g/d", "270-<380 g/d", "380+ g/d")
+levels(ahs_medic_inc2$fruits_gram_ea_4) <- c("<170 g/d", "170-<280 g/d", "280-<420 g/d", "420+ g/d")
+levels(ahs_medic_inc2$refgrains_gram_ea_4) <- c("<40 g/d", "40-<83 g/d", "83-<150 g/d", "150+ g/d")
+levels(ahs_medic_inc2$whole_mixed_grains_gram_ea_4) <- c("<120 g/d", "120-<210 g/d", "219-<350 g/d", "350+ g/d")
+levels(ahs_medic_inc2$nutsseeds_gram_ea_4) <- c("<9 g/d", "9-<18 g/d", "18-<32 g/d", "32+ g/d")
+levels(ahs_medic_inc2$legumes_gram_ea_4) <- c("<33 g/d", "33-<60 g/d", "60-<100 g/d", "100+ g/d")
 
 ```
 
 ## Descriptive table 
 
-* The descriptive table by egg intake (4 groups):
+* The descriptive table by stroke incidence:
 
 ```{r descriptive_table, echo = FALSE}
 
@@ -537,13 +544,23 @@ tablevars <- c("agecat",
                "legumes_gram_ea"
                )
 
+ahs_medic_inc2 %>%
+  mutate(STRK_YN2 = fct_recode(STRK_YN, "Non-case" = "No", "Case" = "Yes")) %>%
+  CreateTableOne(tablevars, strata = "STRK_YN2", data = ., addOverall = TRUE) %>% 
+  print(showAllLevels = TRUE) %>% 
+  kableone()
+
+```
+
+* The descriptive table by egg intake (4 groups):
+
+```{r descriptive_table_by_egg, echo = FALSE}
 ahs_medic_inc2 %>% 
   CreateTableOne(tablevars, strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
   print(showAllLevels = TRUE) %>% 
   kableone()
 
 ```
-
 ## Cox models
 
 * To examine risk factors associated with incident stroke/TIA, we employed the Cox proportional hazards model with attained age as the time scale
@@ -552,7 +569,115 @@ ahs_medic_inc2 %>%
   * Those who were diagnosed with stroke/TIA after the study enrollment were identified as incident cases and their age at diagnosis was calculated. 
     * The mean follow-up years was 16.4 years (median 18.3 years)
     * The total person-years of follow-up was 640,424 years
-  * The main exposure variable of interest was energy-adjusted egg intake, gram/day. Subjects were classified into 4 egg intake groups as shown in the descriptive table
+  * The main exposure variable of interest was energy-adjusted egg intake, gram/day. Subjects were classified into 4 egg intake groups as shown in the descriptive table, and egg intake was entered into the models as categorical
+    * This is because there was a non-linear association between egg intake and stoke/TIA when egg intake was entered as continuous (see below)
+  * All other dietary variables were entered into the models as continuous. Their hazard ratios were estimated for an increment of 100 gram/day
+
+
+```{r mv_cox_models_results, echo = FALSE, warning = FALSE, message = FALSE}
+
+# Cox models --------------------------------------------------------------
+
+ahs_medic_inc2 <- ahs_medic_inc2 %>% 
+  mutate(bene_sex_F = relevel(bene_sex_F, ref="F"),
+         bmicat     = relevel(bmicat, ref="Normal"),
+         inc_STRK   = ifelse(STRK_YN == "Yes", 1, 0),
+         kcal100    = kcal / 100,
+         meat_gram_ea100 = meat_gram_ea / 100,
+         fish_gram_ea100 = fish_gram_ea / 100,
+         alldairy2_gram_ea100 = alldairy2_gram_ea / 100,
+         totalveg_gram_ea100 = totalveg_gram_ea / 100,
+         fruits_gram_ea100 = fruits_gram_ea / 100,
+         refgrains_gram_ea100 = refgrains_gram_ea / 100,
+         whole_mixed_grains_gram_ea100 = whole_mixed_grains_gram_ea / 100,
+         nutsseeds_gram_ea100 = nutsseeds_gram_ea / 100,
+         legumes_gram_ea100 = legumes_gram_ea / 100)
+
+# Without time-dependent hyperlipidemia -----------------------------------
+
+# Model 1
+# Demographics, lifestyles, egg intake (as categorical) and kcal
+mv_mod1 <- coxph(Surv(agein, ageout, inc_STRK) ~ eggs_gram_ea_4 + 
+                  bene_sex_F + rti_race3 + marital + educyou2 + 
+                  bmicat + exercise + sleephrs2 + smokecat6 + alccat +  
+                  kcal100, data = ahs_medic_inc2, method = "efron")
+
+# Model 2, adjusting for other foods
+# Meat as categorical
+# Other food groups as continuous
+mv_mod2 <- update(mv_mod1, .~. + meat_gram_ea100 + fish_gram_ea100 + alldairy2_gram_ea100 + totalveg_gram_ea100 +
+                                fruits_gram_ea100 + refgrains_gram_ea100 + whole_mixed_grains_gram_ea100 +
+                                nutsseeds_gram_ea100 + legumes_gram_ea100)
+
+# Model3 3, adjusting for comorbidity 
+mv_mod3 <- update(mv_mod2, .~. + como_depress + como_disab + como_diabetes + como_hyperl  + como_resp + 
+                    como_anemia + como_kidney + como_hypoth + como_cancers)
+
+# gtsummary
+library(gtsummary)
+
+var_labels <- list(
+  eggs_gram_ea_4                = "Egg (energy-adjusted)",
+  bene_sex_F                    = "Sex",
+  rti_race3                     = "Race (RTI race code)",
+  marital                       = "Marital status",
+  educyou2                      = "Educational level",
+  bmicat                        = "BMI",
+  exercise                      = "Exercise",
+  sleephrs2                     = "Sleep hours",
+  smokecat6                     = "Smoking status",
+  alccat                        = "Alcohol use",
+  kcal100                       = "Total energy (per 100 kcal)",
+  meat_gram_ea100               = "Meat (per 100 g/d)",
+  fish_gram_ea100               = "Fish (per 100 g/d)",
+  alldairy2_gram_ea100          = "Dairy (per 100 g/d)",
+  totalveg_gram_ea100           = "Total vegetables (per 100 g/d)",
+  fruits_gram_ea100             = "Fruits (per 100 g/d)",
+  refgrains_gram_ea100          = "Refined grains (per 100 g/d)",
+  whole_mixed_grains_gram_ea100 = "Whole/mixed grains (per 100 g/d)",
+  nutsseeds_gram_ea100          = "Nuts/seeds (per 100 g/d)",
+  legumes_gram_ea100            = "Legumes (per 100 g/d)",
+  como_depress                  = "Depression",
+  como_disab                    = "Functional disability",
+  como_diabetes                 = "Diabetes",
+  como_hyperl                   = "Hyperlipidemia",
+  como_resp                     = "Respiratory diseases",
+  como_anemia                   = "Anemia",
+  como_kidney                   = "Chronic kidney disease",
+  como_hypoth                   = "Hypothyroid",
+  como_cancers                  = "Cancers"
+)
+
+t1 <- tbl_regression(mv_mod1,
+                     label = var_labels,
+                     add_estimate_to_reference_rows = TRUE,
+                     exponentiate = TRUE,
+                     pvalue_fun = label_style_pvalue(digits = 3)) %>% 
+  add_global_p(keep = FALSE)
+
+t2 <- tbl_regression(mv_mod2,
+                     label = var_labels,
+                     add_estimate_to_reference_rows = TRUE,
+                     exponentiate = TRUE,
+                     pvalue_fun = label_style_pvalue(digits = 3)) %>% 
+  add_global_p(keep = FALSE)
+
+t3 <- tbl_regression(mv_mod3,
+                     label = var_labels,
+                     add_estimate_to_reference_rows = TRUE,
+                     exponentiate = TRUE,
+                     pvalue_fun = label_style_pvalue(digits = 3)) %>% 
+  add_global_p(keep = FALSE)
+
+tbl_merge(tbls = list(t1, t2, t3),
+          tab_spanner = c("**Model 1**", "**Model 2**", "**Model 3**")) %>% 
+  modify_header(label = "**Variable**", 
+                p.value_1 = "**p**", 
+                p.value_2 = "**p**", 
+                p.value_3 = "**p**") %>% 
+  as_flex_table()
+
+```
 
 * Hyperlipidemia as time-dependent variable
   * No significant interaction with egg intake

@@ -669,7 +669,7 @@ ahs_medic_inc2$whole_mixed_grains_gram_ea    <- kcal_adjust(whole_mixed_grains_g
 # table(cutQ(ahs_medic_inc2$alldairy2_gram_ea[ahs_medic_inc2$alldairy2_gram_ea > 0], na.rm = TRUE, p = 0:3/3))
 # table(cutQ(ahs_medic_inc2$totalveg_gram_ea, na.rm = TRUE, p = 0:4/4))
 # table(cutQ(ahs_medic_inc2$eggs_gram_ea[ahs_medic_inc2$eggs_gram_ea > 0], na.rm = TRUE, p = 0:3/3))
-table(cutQ(ahs_medic_inc2$eggs_gram_ea[ahs_medic_inc2$eggs_gram_ea > 0], na.rm = TRUE, p = 0:4/4))
+# table(cutQ(ahs_medic_inc2$eggs_gram_ea[ahs_medic_inc2$eggs_gram_ea > 0], na.rm = TRUE, p = 0:4/4))
 
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   mutate(meat_gram_ea_4 = cut(meat_gram_ea, breaks = c(-Inf, 0, 11, 33, Inf), right = TRUE), 
@@ -698,8 +698,13 @@ ahs_medic_inc2 %>%
 levels(ahs_medic_inc2$meat_gram_ea_4)  <- c("None", "<11 g/d", "11-<33 g/d", "33+ g/d")
 levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<9 g/d", "9-<18 g/d", "18+ g/d")
 levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("None", "<4.5 g/d", "4.5-<16.5 g/d", "16.5+ g/d")
-# levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("<3.6 g/d", "3.6-7.5 g/d", "7.5-<16 g/d", "16+ g/d")
-# levels(ahs_medic_inc2$dairy_gram_ea_4) <- c("<30 g/d", "30-100 g/d", "100-<236 g/d", "236+ g/d")
+levels(ahs_medic_inc2$alldairy2_gram_ea_4) <- c("None", "<50 g/d", "50-<180 g/d", "180+ g/d")
+levels(ahs_medic_inc2$totalveg_gram_ea_4) <- c("<185 g/d", "185-<270 g/d", "270-<380 g/d", "380+ g/d")
+levels(ahs_medic_inc2$fruits_gram_ea_4) <- c("<170 g/d", "170-<280 g/d", "280-<420 g/d", "420+ g/d")
+levels(ahs_medic_inc2$refgrains_gram_ea_4) <- c("<40 g/d", "40-<83 g/d", "83-<150 g/d", "150+ g/d")
+levels(ahs_medic_inc2$whole_mixed_grains_gram_ea_4) <- c("<120 g/d", "120-<210 g/d", "219-<350 g/d", "350+ g/d")
+levels(ahs_medic_inc2$nutsseeds_gram_ea_4) <- c("<9 g/d", "9-<18 g/d", "18-<32 g/d", "32+ g/d")
+levels(ahs_medic_inc2$legumes_gram_ea_4) <- c("<33 g/d", "33-<60 g/d", "60-<100 g/d", "100+ g/d")
 
 # Table 1 -----------------------------------------------------------------
 
@@ -761,10 +766,10 @@ ahs_medic_inc2 %>%
   print(showAllLevels = TRUE, noSpaces = TRUE, printToggle = FALSE) %>% 
   write.csv(file = "Desc_Tab_by_egg.csv")
 
-# out <- ahs_medic_inc2 %>% 
-#   mutate(STRK_YN2 = fct_recode(STRK_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
-#   CreateTableOne(tablevars, strata = "STRK_YN2", data = ., addOverall = TRUE)
-# print(out, showAllLevels = TRUE)
+out <- ahs_medic_inc2 %>%
+  mutate(STRK_YN2 = fct_recode(STRK_YN, "Non-case" = "No", "Case" = "Yes")) %>%
+  CreateTableOne(tablevars, strata = "STRK_YN2", data = ., addOverall = TRUE)
+print(out, showAllLevels = TRUE)
 
 # Same Table 1, but only among those with hyperlipidemia
 # ahs_medic_inc2 %>% 
@@ -809,7 +814,16 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
   mutate(bene_sex_F = relevel(bene_sex_F, ref="F"),
          bmicat     = relevel(bmicat, ref="Normal"),
          inc_STRK   = ifelse(STRK_YN == "Yes", 1, 0),
-         kcal100    = kcal / 100)
+         kcal100    = kcal / 100,
+         meat_gram_ea100 = meat_gram_ea / 100,
+         fish_gram_ea100 = fish_gram_ea / 100,
+         alldairy2_gram_ea100 = alldairy2_gram_ea / 100,
+         totalveg_gram_ea100 = totalveg_gram_ea / 100,
+         fruits_gram_ea100 = fruits_gram_ea / 100,
+         refgrains_gram_ea100 = refgrains_gram_ea / 100,
+         whole_mixed_grains_gram_ea100 = whole_mixed_grains_gram_ea / 100,
+         nutsseeds_gram_ea100 = nutsseeds_gram_ea / 100,
+         legumes_gram_ea100 = legumes_gram_ea / 100)
          # vegstat3   = fct_collapse(vegstat2, "Non-veg" = c("Non-veg", "Semi")))
 
 # Convert to data in time-dependent form
@@ -859,6 +873,176 @@ rr_intx <- function(var, beta, V){
   wald_ci(beta, L, V)
 }
 
+
+# Without time-dependent hyperlipidemia -----------------------------------
+
+# Model 1
+# Demographics, lifestyles, egg intake (as categorical) and kcal
+mv_mod1 <- coxph(Surv(agein, ageout, inc_STRK) ~ eggs_gram_ea_4 + 
+                  bene_sex_F + rti_race3 + marital + educyou2 + 
+                  bmicat + exercise + sleephrs2 + smokecat6 + alccat +  
+                  kcal100, data = ahs_medic_inc2, method = "efron")
+
+summary(mv_mod1)
+
+# Model 2, adjusting for other foods
+# Meat as categorical
+# Other food groups as continuous
+mv_mod2 <- update(mv_mod1, .~. + meat_gram_ea100 + fish_gram_ea100 + alldairy2_gram_ea100 + totalveg_gram_ea100 +
+                                fruits_gram_ea100 + refgrains_gram_ea100 + whole_mixed_grains_gram_ea100 +
+                                nutsseeds_gram_ea100 + legumes_gram_ea100)
+
+summary(mv_mod2)
+
+# Model3 3, adjusting for comorbidity 
+mv_mod3 <- update(mv_mod2, .~. + como_depress + como_disab + como_diabetes + como_hyperl  + como_resp + 
+                    como_anemia + como_kidney + como_hypoth + como_cancers)
+
+summary(mv_mod3)
+
+# gtsummary
+library(gtsummary)
+
+var_labels <- list(
+  eggs_gram_ea_4                = "Egg (energy-adjusted)",
+  bene_sex_F                    = "Sex",
+  rti_race3                     = "Race (RTI race code)",
+  marital                       = "Marital status",
+  educyou2                      = "Educational level",
+  bmicat                        = "BMI",
+  exercise                      = "Exercise",
+  sleephrs2                     = "Sleep hours",
+  smokecat6                     = "Smoking status",
+  alccat                        = "Alcohol use",
+  kcal100                       = "Total energy (per 100 kcal)",
+  meat_gram_ea100               = "Meat (per 100 g/d)",
+  fish_gram_ea100               = "Fish (per 100 g/d)",
+  alldairy2_gram_ea100          = "Dairy (per 100 g/d)",
+  totalveg_gram_ea100           = "Total vegetables (per 100 g/d)",
+  fruits_gram_ea100             = "Fruits (per 100 g/d)",
+  refgrains_gram_ea100          = "Refined grains (per 100 g/d)",
+  whole_mixed_grains_gram_ea100 = "Whole/mixed grains (per 100 g/d)",
+  nutsseeds_gram_ea100          = "Nuts/seeds (per 100 g/d)",
+  legumes_gram_ea100            = "Legumes (per 100 g/d)",
+  como_depress                  = "Depression",
+  como_disab                    = "Functional disability",
+  como_diabetes                 = "Diabetes",
+  como_hyperl                   = "Hyperlipidemia",
+  como_resp                     = "Respiratory diseases",
+  como_anemia                   = "Anemia",
+  como_kidney                   = "Chronic kidney disease",
+  como_hypoth                   = "Hypothyroid",
+  como_cancers                  = "Cancers"
+)
+
+t1 <- tbl_regression(mv_mod1,
+                     label = var_labels,
+                     add_estimate_to_reference_rows = TRUE,
+                     exponentiate = TRUE,
+                     pvalue_fun = label_style_pvalue(digits = 3)) %>% 
+  add_global_p(keep = FALSE)
+
+t2 <- tbl_regression(mv_mod2,
+                     label = var_labels,
+                     add_estimate_to_reference_rows = TRUE,
+                     exponentiate = TRUE,
+                     pvalue_fun = label_style_pvalue(digits = 3)) %>% 
+  add_global_p(keep = FALSE)
+
+t3 <- tbl_regression(mv_mod3,
+                     label = var_labels,
+                     add_estimate_to_reference_rows = TRUE,
+                     exponentiate = TRUE,
+                     pvalue_fun = label_style_pvalue(digits = 3)) %>% 
+  add_global_p(keep = FALSE)
+
+tbl_merge(tbls = list(t1, t2, t3),
+          tab_spanner = c("**Model 1**", "**Model 2**", "**Model 3**")) %>% 
+  modify_header(label = "**Variable**", 
+                p.value_1 = "**p**", 
+                p.value_2 = "**p**", 
+                p.value_3 = "**p**") %>% 
+  as_flex_table()
+
+# Checking interactions ---------------------------------------------------
+
+# Egg x meat intereaction (as categorical)
+# Not significant p = 0.2781026
+mv_mod3 %>% update(.~. - meat_gram_ea100 + eggs_gram_ea_4 * meat_gram_ea_4) %>% anova()
+mv_mod3 %>% update(.~. + eggs_gram_ea_4 * meat_gram_ea100) %>% anova()
+mv_mod3 %>% update(.~. + eggs_gram_ea_4 * meat_gram_ea100) %>% summary()
+
+
+# Checking the linearity of dietary variables -----------------------------
+
+library(rms)
+library(rmsMD)
+
+# Restricted cubic spline
+dd <- datadist(ahs_medic_inc2)
+options(datadist='dd')
+
+# Model 3
+# Egg as cubic spline with 5 knots
+# egg nonlinear p = 0.0011
+# nuts/seed nonlinear p = 0.0379
+mv_mod3_rcs <- cph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
+                       bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
+                       rcs(eggs_gram_ea, parms = 4) + 
+                       rcs(meat_gram_ea, parms = 4) + 
+                       rcs(fish_gram_ea, parms = 4) + 
+                       rcs(alldairy2_gram_ea, parms = 4) + 
+                       rcs(totalveg_gram_ea, parms = 4) + 
+                       rcs(fruits_gram_ea, parms = 4) + 
+                       rcs(refgrains_gram_ea, parms = 4) + 
+                       rcs(whole_mixed_grains_gram_ea, parms = 4) + 
+                       rcs(nutsseeds_gram_ea, parms = 4) + 
+                       rcs(legumes_gram_ea, parms = 4), 
+                       data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
+
+anova(mv_mod3_rcs)
+ggrmsMD(mv_mod3_rcs, ahs_medic_inc2, ncol = 5)
+
+# Remove RCS terms for all other food groups
+mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
+                       bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
+                       rcs(eggs_gram_ea, parms = 4) + 
+                       rcs(nutsseeds_gram_ea, parms = 4) + 
+                       meat_gram_ea + 
+                       fish_gram_ea + 
+                       alldairy2_gram_ea + 
+                       totalveg_gram_ea + 
+                       fruits_gram_ea + 
+                       refgrains_gram_ea + 
+                       whole_mixed_grains_gram_ea + 
+                       legumes_gram_ea, 
+                       data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
+
+anova(mv_mod3_rcs2)
+ggrmsMD(mv_mod3_rcs2, ahs_medic_inc2)
+
+# Change the reference to 10 g/d
+dd$limits$eggs_gram_ea[2] <- 10
+mv_mod3_rcs3 <- update(mv_mod3_rcs2)
+Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 60, by = 5), fun = exp, ref.zero = TRUE) %>% 
+  select(eggs_gram_ea, yhat, lower, upper)
+
+# pdf("RCS_egg_MV3_MI1.pdf", width = 6.5, height = 5)
+Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
+  ggplot() +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = 9:14 / 10) +
+  geom_hline(yintercept =  1, linetype = 2) +
+  coord_cartesian(ylim = c(0.88, 1.22)) +
+  labs(x = "Egg intake (energy-adjusted, gram/day)",
+       y = "Adjusted hazard ratio (95% CI)",
+       caption = "",
+       title = "Model 3: Cubic spline for egg intake") +
+  theme(text=element_text(size = 14))
+# dev.off()
+
+
+# With time-dependent hyperlipidemia --------------------------------------
 
 # Unadjusted HRs
 cox_out <- lapply(ahs_medic_inc2_td[vars], coxm)
