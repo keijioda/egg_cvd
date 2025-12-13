@@ -94,7 +94,7 @@ Egg CVD study
 
 ## Descriptive table
 
-- The descriptive table by egg intake (4 groups):
+- The descriptive table by stroke incidence:
 
 |  | level | Overall | Non-case | Case | p | test |
 |:---|:---|:---|:---|:---|:---|:---|
@@ -344,7 +344,17 @@ Egg CVD study
     - The total person-years of follow-up was 640,424 years
   - The main exposure variable of interest was energy-adjusted egg
     intake, gram/day. Subjects were classified into 4 egg intake groups
-    as shown in the descriptive table
+    as shown in the descriptive table, and egg intake was entered into
+    the models as categorical
+    - This is because there was a non-linear association between egg
+      intake and stoke/TIA when egg intake was entered as continuous
+      (see below)
+  - All other dietary variables were entered into the models as
+    continuous. Their hazard ratios were estimated for an increment of
+    100 gram/day
+
+![](summary_stroke_files/figure-gfm/mv_cox_models_results-1.png)<!-- -->
+
 - Hyperlipidemia as time-dependent variable
   - No significant interaction with egg intake
   - The time-dependent variable was dropped
