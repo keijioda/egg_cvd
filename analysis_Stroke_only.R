@@ -476,7 +476,7 @@ hyperl_diag_date <- ahs_medic %>%
          DateDiff_years = as.numeric(DateDiff, 'years')) 
 
 # How many cases in which qreturndate > diagnosis date?
-# 3,588 such cases
+# 3,165 such cases
 hyperl_diag_date %>% 
   filter(DateDiff_days <= 0) %>% 
   select(HYPERL_YN, HYPERL_EVER, qreturndate, DateDiff_days, DateDiff_months, DateDiff_years)

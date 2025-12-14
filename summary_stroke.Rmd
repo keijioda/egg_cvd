@@ -255,6 +255,25 @@ unverified_deaths <- ahs_medic %>%
 ahs_medic <- ahs_medic %>% 
   anti_join(unverified_deaths, by = "analysisid") 
 
+# Identify stroke cases
+ahs_medic <- ahs_medic %>% 
+  mutate(STRK_YN = ifelse(is.na(STROKE_TIA_EVER), 0, 1),
+         STRK_YN = factor(STRK_YN, label = c("No", "Yes")))   
+
+prev_cases <- ahs_medic %>% 
+  filter(STRK_YN == "Yes") %>% 
+  mutate(STROKE_TIA_EVER = ymd(STROKE_TIA_EVER)) %>%
+  filter(STROKE_TIA_EVER <= qreturndate) %>% 
+  select(BENE_ID, analysisid)
+
+# Exclude prevalent cases
+# Yields n = 39,157 subjects
+ahs_medic <- ahs_medic %>% 
+  anti_join(prev_cases, by = "analysisid") %>% 
+  mutate(BENE_BIRTH_DT = ymd(BENE_BIRTH_DT),
+         BENE_DEATH_DT = ymd(BENE_DEATH_DT),
+         STROKE_TIA_EVER = ymd(STROKE_TIA_EVER))
+
 ```
 
 ## Aim
