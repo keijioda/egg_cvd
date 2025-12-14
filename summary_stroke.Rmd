@@ -556,7 +556,7 @@ ahs_medic_inc2 %>%
 
 ```{r descriptive_table_by_egg, echo = FALSE}
 ahs_medic_inc2 %>% 
-  CreateTableOne(tablevars, strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
+  CreateTableOne(c("STRK_YN", tablevars), strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
   print(showAllLevels = TRUE) %>% 
   kableone()
 
