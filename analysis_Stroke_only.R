@@ -969,9 +969,14 @@ tbl_merge(tbls = list(t1, t2, t3),
 # Egg x meat intereaction (as categorical)
 # Not significant p = 0.2781026
 mv_mod3 %>% update(.~. - meat_gram_ea100 + eggs_gram_ea_4 * meat_gram_ea_4) %>% anova()
-mv_mod3 %>% update(.~. + eggs_gram_ea_4 * meat_gram_ea100) %>% anova()
-mv_mod3 %>% update(.~. + eggs_gram_ea_4 * meat_gram_ea100) %>% summary()
 
+# Egg x fish intereaction (as categorical)
+# Not significant p = 0.2801177   
+mv_mod3 %>% update(.~. - fish_gram_ea100 + eggs_gram_ea_4 * fish_gram_ea_4) %>% anova()
+
+# Egg x dairy intereaction (as categorical)
+# Not significant p = 0.5943553 
+mv_mod3 %>% update(.~. - alldairy2_gram_ea100 + eggs_gram_ea_4 * alldairy2_gram_ea_4) %>% anova()
 
 # Checking the linearity of dietary variables -----------------------------
 
@@ -1018,13 +1023,18 @@ mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + mar
                        legumes_gram_ea, 
                        data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
 
+summary(mv_mod3_rcs2)
 anova(mv_mod3_rcs2)
 ggrmsMD(mv_mod3_rcs2, ahs_medic_inc2)
 
 # Change the reference to 10 g/d
 dd$limits$eggs_gram_ea[2] <- 10
+
 mv_mod3_rcs3 <- update(mv_mod3_rcs2)
 Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 60, by = 5), fun = exp, ref.zero = TRUE) %>% 
+  select(eggs_gram_ea, yhat, lower, upper)
+
+Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.zero = TRUE) %>% 
   select(eggs_gram_ea, yhat, lower, upper)
 
 # pdf("RCS_egg_MV3_MI1.pdf", width = 6.5, height = 5)
@@ -1041,473 +1051,47 @@ Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = T
   theme(text=element_text(size = 14))
 # dev.off()
 
+# Change the reference to 0 g/d
+dd$limits$eggs_gram_ea[2] <- 0
+mv_mod3_rcs3 <- update(mv_mod3_rcs2)
+
+Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 60, by = 5), fun = exp, ref.zero = TRUE) %>% 
+  select(eggs_gram_ea, yhat, lower, upper)
+
+# pdf("RCS_egg_MV3_MI1.pdf", width = 6.5, height = 5)
+Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
+  ggplot() +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = 5:14 / 10) +
+  geom_hline(yintercept =  1, linetype = 2) +
+  coord_cartesian(ylim = c(0.7, 1.1)) +
+  labs(x = "Egg intake (energy-adjusted, gram/day)",
+       y = "Adjusted hazard ratio (95% CI)",
+       caption = "",
+       title = "Model 3: Cubic spline for egg intake (Ref = 0 g/d)") +
+  theme(text=element_text(size = 14))
+# dev.off()
 
 # With time-dependent hyperlipidemia --------------------------------------
-
-# Unadjusted HRs
-cox_out <- lapply(ahs_medic_inc2_td[vars], coxm)
-out <- do.call(rbind, lapply(cox_out, getHR))
-rownames(out) <- unlist(mapply(replace_var, cox_out, varname = names(cox_out)))
-out
 
 # Multivariable Cox model
 mv_mod <- coxph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                   bmicat + exercise + sleephrs2 + smokecat6 + alccat + hyperl + 
-                  # kcal100 + egg_freq + hyperl * egg_freq, data = ahs_medic_inc2_td, method = "efron")
                   kcal100 + eggs_gram_ea_4 + hyperl * eggs_gram_ea_4, data = ahs_medic_inc2_td, method = "efron")
 
 mv_out  <- summary(mv_mod)
 anova(mv_mod)
 
-mv_out2 <- cbind(mvHR = coef(mv_out)[, "exp(coef)"], exp(confint(mv_mod))) %>% round(3)
-
-# Set up
-beta <- coef(mv_mod)
-V <- vcov(mv_mod)
-names(beta)
-
-# RR of egg freq for those w/o hyperlipidemia
-bind_rows(
-  rr_intx("egg_freq1-3/mo", beta, V),
-  rr_intx("egg_freq1/wk"  , beta, V),
-  rr_intx("egg_freq2-4/wk", beta, V),
-  rr_intx("egg_freq5+/wk" , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(hyperl = "No") %>% 
-  select(hyperl, var, everything())
-
-# RR of egg freq for those with hyperlipidemia
-bind_rows(
-  rr_intx(c("egg_freq1-3/mo", "hyperl:egg_freq1-3/mo"), beta, V),
-  rr_intx(c("egg_freq1/wk"  , "hyperl:egg_freq1/wk"), beta, V),
-  rr_intx(c("egg_freq2-4/wk", "hyperl:egg_freq2-4/wk"), beta, V),
-  rr_intx(c("egg_freq5+/wk" , "hyperl:egg_freq5+/wk"), beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(hyperl = "Yes") %>% 
-  select(hyperl, var, everything())
-
-# Model 1 Trend p-value
-mv_mod_tmp <- update(mv_mod, .~. - educyou2 + as.numeric(educyou))
-summary(mv_mod_tmp)
-mv_mod_tmp <- update(mv_mod, .~. - bmicat + as.numeric(bmicat))
-summary(mv_mod_tmp)
-mv_mod_tmp <- update(mv_mod, .~. - exercise + as.numeric(exercise))
-summary(mv_mod_tmp)
-mv_mod_tmp <- update(mv_mod, .~. - sleephrs2 + as.numeric(sleephrs))
-summary(mv_mod_tmp)
-
 # For models with other food group
-mv_mod2 <- update(mv_mod, .~. + meat_gram_ea_4 + fish_gram_ea + alldairy2_gram_ea + totalveg_gram_ea +
+mv_mod2 <- update(mv_mod, .~. + meat_gram_ea + fish_gram_ea + alldairy2_gram_ea + totalveg_gram_ea +
                                 fruits_gram_ea + refgrains_gram_ea + whole_mixed_grains_gram_ea +
                                 nutsseeds_gram_ea + legumes_gram_ea)
 
 mv_out <- summary(mv_mod2)
-mv_out2 <- cbind(mvHR = coef(mv_out)[, "exp(coef)"], exp(confint(mv_mod2))) %>% round(3)
-
 anova(mv_mod2)
-
-# Set up
-beta <- coef(mv_mod2)
-V <- vcov(mv_mod2)
-names(beta)
-
-# RR of egg freq for those w/o hyperlipidemia
-bind_rows(
-  rr_intx("egg_freq1-3/mo", beta, V),
-  rr_intx("egg_freq1/wk"  , beta, V),
-  rr_intx("egg_freq2-4/wk", beta, V),
-  rr_intx("egg_freq5+/wk" , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(hyperl = "No") %>% 
-  select(hyperl, var, everything())
-
-# RR of egg freq for those with hyperlipidemia
-bind_rows(
-  rr_intx(c("egg_freq1-3/mo", "hyperl:egg_freq1-3/mo"), beta, V),
-  rr_intx(c("egg_freq1/wk"  , "hyperl:egg_freq1/wk"), beta, V),
-  rr_intx(c("egg_freq2-4/wk", "hyperl:egg_freq2-4/wk"), beta, V),
-  rr_intx(c("egg_freq5+/wk" , "hyperl:egg_freq5+/wk"), beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(hyperl = "Yes") %>% 
-  select(hyperl, var, everything())
-
-# Trend p-value
-mv_mod4 <- update(mv_mod2, .~. - educyou2 + as.numeric(educyou))
-summary(mv_mod4)
-mv_mod4 <- update(mv_mod2, .~. - bmicat + as.numeric(bmicat))
-summary(mv_mod4)
-mv_mod4 <- update(mv_mod2, .~. - exercise + as.numeric(exercise))
-summary(mv_mod4)
-mv_mod4 <- update(mv_mod2, .~. - sleephrs2 + as.numeric(sleephrs))
-summary(mv_mod4)
-mv_mod4 <- update(mv_mod2, .~. - meat_gram_ea_4 + as.numeric(meat_gram_ea_4))
-summary(mv_mod4)
-# mv_mod4 <- update(mv_mod2, .~. - fish_gram_ea_4 + as.numeric(fish_gram_ea_4))
-summary(mv_mod4)
-mv_mod4 <- update(mv_mod2, .~. - eggs_gram_ea_4 + as.numeric(eggs_gram_ea_4))
-summary(mv_mod4)
-# mv_mod4 <- update(mv_mod2, .~. - dairy_gram_ea_4 + as.numeric(dairy_gram_ea_4))
-summary(mv_mod4)
 
 # Model with comorbidity 
 mv_mod3 <- update(mv_mod2, .~. + como_depress + como_disab + como_diabetes + como_resp + 
                     como_anemia + como_kidney + como_hypoth + como_cancers)
 mv_out <- summary(mv_mod3)
-mv_out2 <- cbind(mvHR = coef(mv_out)[, "exp(coef)"], exp(confint(mv_mod3))) %>% round(3)
-mv_out2
-
 anova(mv_mod3)
-
-# Set up
-beta <- coef(mv_mod3)
-V <- vcov(mv_mod3)
-names(beta)
-
-# RR of egg freq for those w/o hyperlipidemia
-bind_rows(
-  rr_intx("egg_freq1-3/mo", beta, V),
-  rr_intx("egg_freq1/wk"  , beta, V),
-  rr_intx("egg_freq2-4/wk", beta, V),
-  rr_intx("egg_freq5+/wk" , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(hyperl = "No") %>% 
-  select(hyperl, var, everything())
-
-# RR of egg freq for those with hyperlipidemia
-bind_rows(
-  rr_intx(c("egg_freq1-3/mo", "hyperl:egg_freq1-3/mo"), beta, V),
-  rr_intx(c("egg_freq1/wk"  , "hyperl:egg_freq1/wk"), beta, V),
-  rr_intx(c("egg_freq2-4/wk", "hyperl:egg_freq2-4/wk"), beta, V),
-  rr_intx(c("egg_freq5+/wk" , "hyperl:egg_freq5+/wk"), beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(hyperl = "Yes") %>% 
-  select(hyperl, var, everything())
-
-# Testing for 3-way interaction
-# Not significant
-summary(mv_mod3)
-update(mv_mod3, .~. + hyperl * meat_gram_ea_4 * eggs_gram_ea_4) %>% anova()
-
-# Remove 3-way interaction
-# Keep hyperl x mean, egg x meat
-# hyperl x egg, hyperl x meat both not significant
-update(mv_mod3, .~. + hyperl * meat_gram_ea + eggs_gram_ea_4 * meat_gram_ea) %>% anova()
-
-# keep only egg x meat
-# Model with meat x egg interaction
-summary(mv_mod3)
-mv_mod4 <- update(mv_mod3, .~. - hyperl:eggs_gram_ea_4 + meat_gram_ea_4 * eggs_gram_ea_4)
-mv_mod4 <- update(mv_mod3, .~. -hyperl - hyperl:eggs_gram_ea_4 + como_hyperl + meat_gram_ea_4 * eggs_gram_ea_4)
-mv_mod4 %>% anova()
-summary(mv_mod4)
-
-# Remove egg x meat interaction
-mv_mod5 <- update(mv_mod3, .~. -hyperl - hyperl:eggs_gram_ea_4 + como_hyperl, data = ahs_medic_inc2)
-mv_mod5 %>% anova()
-summary(mv_mod5)
-
-# Set up
-beta <- coef(mv_mod4)
-V <- vcov(mv_mod4)
-names(beta)
-
-# RR of egg freq for those who eat no meat 
-a <- bind_rows(
-  rr_intx("egg_freq1-3/mo", beta, V),
-  rr_intx("egg_freq1/wk"  , beta, V),
-  rr_intx("egg_freq2-4/wk", beta, V),
-  rr_intx("egg_freq5+/wk" , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(Meat = "None") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat <11
-b <- bind_rows(
-  rr_intx(c("egg_freq1-3/mo", "egg_freq1-3/mo:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("egg_freq1/wk"  , "egg_freq1/wk:meat_gram_ea_4(0,11]")  , beta, V),
-  rr_intx(c("egg_freq2-4/wk", "egg_freq2-4/wk:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("egg_freq5+/wk" , "egg_freq5+/wk:meat_gram_ea_4(0,11]") , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(Meat = "<11") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat 11-33
-c <- bind_rows(
-  rr_intx(c("egg_freq1-3/mo", "egg_freq1-3/mo:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("egg_freq1/wk"  , "egg_freq1/wk:meat_gram_ea_4(11,33]")  , beta, V),
-  rr_intx(c("egg_freq2-4/wk", "egg_freq2-4/wk:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("egg_freq5+/wk" , "egg_freq5+/wk:meat_gram_ea_4(11,33]") , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(Meat = "11-33") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat >33
-d <- bind_rows(
-  rr_intx(c("egg_freq1-3/mo", "egg_freq1-3/mo:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("egg_freq1/wk"  , "egg_freq1/wk:meat_gram_ea_4(33, Inf]")  , beta, V),
-  rr_intx(c("egg_freq2-4/wk", "egg_freq2-4/wk:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("egg_freq5+/wk" , "egg_freq5+/wk:meat_gram_ea_4(33, Inf]") , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(Meat = ">33") %>% 
-  select(Meat, var, everything())
-
-a;b;c;d;
-
-# RR of meat intake for those who eat no egg 
-a <- bind_rows(
-  rr_intx("meat_gram_ea_4(0,11]", beta, V),
-  rr_intx("meat_gram_ea_4(11,33]"  , beta, V),
-  rr_intx("meat_gram_ea_4(33, Inf]", beta, V)
-) %>% 
-  mutate(var = names(beta)[25:27]) %>%
-  mutate(Egg = "None") %>% 
-  select(Egg, var, everything())
-
-# RR of meat intake for those who eat egg 1-3/mo
-b <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(0,11]", "egg_freq1-3/mo:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("meat_gram_ea_4(11,33]"  , "egg_freq1-3/mo:meat_gram_ea_4(11,33]")  , beta, V),
-  rr_intx(c("meat_gram_ea_4(33, Inf]", "egg_freq1-3/mo:meat_gram_ea_4(33, Inf]"), beta, V)
-) %>% 
-  mutate(var = names(beta)[25:27]) %>%
-  mutate(Egg = "1-3/mo") %>% 
-  select(Egg, var, everything())
-
-# RR of meat intake for those who eat egg 1/wk
-c <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(0,11]", "egg_freq1/wk:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("meat_gram_ea_4(11,33]"  , "egg_freq1/wk:meat_gram_ea_4(11,33]")  , beta, V),
-  rr_intx(c("meat_gram_ea_4(33, Inf]", "egg_freq1/wk:meat_gram_ea_4(33, Inf]"), beta, V)
-) %>% 
-  mutate(var = names(beta)[25:27]) %>%
-  mutate(Egg = "1/wk") %>% 
-  select(Egg, var, everything())
-
-# RR of meat intake for those who eat egg 2-4/wk
-d <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(0,11]", "egg_freq2-4/wk:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("meat_gram_ea_4(11,33]"  , "egg_freq2-4/wk:meat_gram_ea_4(11,33]")  , beta, V),
-  rr_intx(c("meat_gram_ea_4(33, Inf]", "egg_freq2-4/wk:meat_gram_ea_4(33, Inf]"), beta, V)
-) %>% 
-  mutate(var = names(beta)[25:27]) %>%
-  mutate(Egg = "2-4/wk") %>% 
-  select(Egg, var, everything())
-
-# RR of meat intake for those who eat egg 5+/wk
-e <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(0,11]", "egg_freq5+/wk:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("meat_gram_ea_4(11,33]"  , "egg_freq5+/wk:meat_gram_ea_4(11,33]")  , beta, V),
-  rr_intx(c("meat_gram_ea_4(33, Inf]", "egg_freq5+/wk:meat_gram_ea_4(33, Inf]"), beta, V)
-) %>% 
-  mutate(var = names(beta)[25:27]) %>%
-  mutate(Egg = "5+/wk") %>% 
-  select(Egg, var, everything())
-
-a;b;c;d;e;
-
-# Egg x meatn HR table
-# No egg, no meat as the reference
-
-# RR of egg freq for those who eat no meat 
-a <- bind_rows(
-  rr_intx("egg_freq1-3/mo", beta, V),
-  rr_intx("egg_freq1/wk"  , beta, V),
-  rr_intx("egg_freq2-4/wk", beta, V),
-  rr_intx("egg_freq5+/wk" , beta, V)
-) %>% 
-  mutate(var = names(beta)[21:24]) %>%
-  mutate(Meat = "None") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat <11
-b <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("egg_freq1-3/mo", "meat_gram_ea_4(0,11]", "egg_freq1-3/mo:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("egg_freq1/wk", "meat_gram_ea_4(0,11]", "egg_freq1/wk:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("egg_freq2-4/wk", "meat_gram_ea_4(0,11]", "egg_freq2-4/wk:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("egg_freq5+/wk", "meat_gram_ea_4(0,11]", "egg_freq5+/wk:meat_gram_ea_4(0,11]"), beta, V)
-) %>% 
-  mutate(var = c("egg_freqNone", names(beta)[21:24])) %>%
-  mutate(Meat = "<11") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat 11-33
-c <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("egg_freq1-3/mo", "meat_gram_ea_4(11,33]", "egg_freq1-3/mo:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("egg_freq1/wk", "meat_gram_ea_4(11,33]", "egg_freq1/wk:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("egg_freq2-4/wk", "meat_gram_ea_4(11,33]", "egg_freq2-4/wk:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("egg_freq5+/wk", "meat_gram_ea_4(11,33]", "egg_freq5+/wk:meat_gram_ea_4(11,33]"), beta, V)
-) %>% 
-  mutate(var = c("egg_freqNone", names(beta)[21:24])) %>%
-  mutate(Meat = "11-33") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat >33
-d <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("egg_freq1-3/mo", "meat_gram_ea_4(33, Inf]", "egg_freq1-3/mo:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("egg_freq1/wk", "meat_gram_ea_4(33, Inf]", "egg_freq1/wk:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("egg_freq2-4/wk", "meat_gram_ea_4(33, Inf]", "egg_freq2-4/wk:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("egg_freq5+/wk", "meat_gram_ea_4(33, Inf]", "egg_freq5+/wk:meat_gram_ea_4(33, Inf]"), beta, V)
-) %>% 
-  mutate(var = c("egg_freqNone", names(beta)[21:24])) %>%
-  mutate(Meat = "33+") %>% 
-  select(Meat, var, everything())
-
-a;b;c;d
-
-names(beta)
-
-# RR of egg freq for those who eat no meat 
-a <- bind_rows(
-  rr_intx("eggs_gram_ea_4(0,4.5]", beta, V),
-  rr_intx("eggs_gram_ea_4(4.5,16.5]"  , beta, V),
-  rr_intx("eggs_gram_ea_4(16.5, Inf]", beta, V)
-) %>% 
-  mutate(var = names(beta)[20:22]) %>%
-  mutate(Meat = "None") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat <11
-b <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(0,4.5]", "meat_gram_ea_4(0,11]", "eggs_gram_ea_4(0,4.5]:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(4.5,16.5]", "meat_gram_ea_4(0,11]", "eggs_gram_ea_4(4.5,16.5]:meat_gram_ea_4(0,11]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(16.5, Inf]", "meat_gram_ea_4(0,11]", "eggs_gram_ea_4(16.5, Inf]:meat_gram_ea_4(0,11]"), beta, V)
-) %>% 
-  mutate(var = c("eggs_gram_ea_4None", names(beta)[20:22])) %>%
-  mutate(Meat = "<11") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat 11-33
-c <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(0,4.5]", "meat_gram_ea_4(11,33]", "eggs_gram_ea_4(0,4.5]:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(4.5,16.5]", "meat_gram_ea_4(11,33]", "eggs_gram_ea_4(4.5,16.5]:meat_gram_ea_4(11,33]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(16.5, Inf]", "meat_gram_ea_4(11,33]", "eggs_gram_ea_4(16.5, Inf]:meat_gram_ea_4(11,33]"), beta, V)
-) %>% 
-  mutate(var = c("eggs_gram_ea_4None", names(beta)[20:22])) %>%
-  mutate(Meat = "11-33") %>% 
-  select(Meat, var, everything())
-
-# RR of egg freq for those who eat meat >33
-d <- bind_rows(
-  rr_intx(c("meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(0,4.5]", "meat_gram_ea_4(33, Inf]", "eggs_gram_ea_4(0,4.5]:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(4.5,16.5]", "meat_gram_ea_4(33, Inf]", "eggs_gram_ea_4(4.5,16.5]:meat_gram_ea_4(33, Inf]"), beta, V),
-  rr_intx(c("eggs_gram_ea_4(16.5, Inf]", "meat_gram_ea_4(33, Inf]", "eggs_gram_ea_4(16.5, Inf]:meat_gram_ea_4(33, Inf]"), beta, V)
-) %>% 
-  mutate(var = c("eggs_gram_ea_4None", names(beta)[20:22])) %>%
-  mutate(Meat = "33+") %>% 
-  select(Meat, var, everything())
-a;b;c;d
-
-# Cox models among those with hyperlipidemia ------------------------------
-
-# Indep vars (will be age-adjusted)
-vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "vegstat3", "bmicat", "exercise", "sleephrs2", "smokecat", "alccat",
-          "como_depress", "como_disab", "como_diabetes",  "como_resp", "como_kidney", "como_hypoth", "como_cancers")
-
-ahs_medic_inc3 <- ahs_medic_inc2 %>% 
-  filter(HYPERL_YN == "Yes")
-
-
-nrow(ahs_medic_inc3)
-ahs_medic_inc3 %>% 
-  group_by(inc_CVD) %>% 
-  tally()
-
-# Cox proportinal hazards model
-coxm <- function(var, dsn = ahs_medic_inc3){
-  fm <- formula(Surv(agein, ageout, inc_CVD) ~ var)
-  mod <- coxph(fm, data = dsn, method = "efron")
-  return(mod)
-}
-
-# Unadjusted HRs
-cox_out <- lapply(ahs_medic_inc3[vars], coxm)
-out <- do.call(rbind, lapply(cox_out, getHR))
-rownames(out) <- unlist(mapply(replace_var, cox_out, varname = names(cox_out)))
-out
-
-# Multivariable Cox model
-mv_mod <- coxph(Surv(agein, ageout, inc_CVD) ~ bene_sex_F + rti_race3 + marital + educyou2 + vegstat3 + 
-                  bmicat + exercise + sleephrs2 + smokecat + alccat + como_depress + como_disab + como_diabetes + 
-                  como_resp + como_kidney + como_hypoth + como_cancers, data = ahs_medic_inc3, method = "efron")
-
-mv_out  <- summary(mv_mod)
-mv_out2 <- cbind(mvHR = coef(mv_out)[, "exp(coef)"], exp(confint(mv_mod))) %>% round(2)
-
-# For models with food group (remove dietary pattern)
-vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "bmicat", "exercise", "sleephrs2", "smokecat", "alccat",
-          "como_depress", "como_disab", "como_diabetes", "como_resp", "como_kidney", "como_hypoth", "como_cancers",
-          "kcal100", "meat_gram_ea_4", "fish_gram_ea_4", "eggs_gram_ea_4", "dairy_gram_ea_4")
-
-cox_out <- lapply(ahs_medic_inc3[vars], coxm)
-out <- do.call(rbind, lapply(cox_out, getHR))
-rownames(out) <- unlist(mapply(replace_var, cox_out, varname = names(cox_out)))
-out
-
-# mv_mod2 <- update(mv_mod, .~. - vegstat3 + kcal100 + meat_gram_ea_4 + fish_gram_ea_4 + eggs_gram_ea_4 + dairy_gram_ea_4)
-mv_mod2 <- update(mv_mod, .~. - vegstat3 + kcal100 + meat_gram_ea_4 + eggs_gram_ea_4)
-mv_out <- summary(mv_mod2)
-mv_out2 <- cbind(mvHR = coef(mv_out)[, "exp(coef)"], exp(confint(mv_mod2))) %>% round(2)
-# cbind(out, mv_out2)
-
-# Model with meat x egg interaction
-mv_mod3 <- update(mv_mod2, .~. + meat_gram_ea_4 * eggs_gram_ea_4)
-mv_out3 <- summary(mv_mod3)
-mv_out3 <- cbind(mvHR = coef(mv_out3)[, "exp(coef)"], exp(confint(mv_mod3))) %>% round(2)
-
-# LR test for interaction
-anova(mv_mod2, mv_mod3)
-
-
-
-
-
-
-
-
-
-
-# Checking PH assumption
-mv_mod_zph <- cox.zph(mv_mod, transform = "km", global = FALSE, terms = FALSE)
-mv_mod_zph
-
-# Variables violating PH assumptions
-plot.zph <- function(var,...){
-  plot(mv_mod_zph, var = var, resid = FALSE, col = c("red", "pink"), lwd = 2, cex.lab = 2, cex.axis = 2,...)
-  abline(h = 0, lty = 2)
-} 
-
-par(mfrow=c(2, 4), mar=c(c(5.1, 5.1, 4.1, 2.1)))
-  plot.zph("rti_race3Black",     ylim = c(-4, 4))
-  plot.zph("maritalDiv/Wid",     ylim = c(-4, 4))
-  plot.zph("educyou2HS or less", ylim = c(-4, 4))
-  plot.zph("bmicatObese",        ylim = c(-4, 4))
-  plot.zph("sleephrs2<= 5 hrs",  ylim = c(-4, 4))
-  plot.zph("sleephrs2>= 9 hrs",  ylim = c(-4, 4))
-  plot.zph("smokecatEver",       ylim = c(-4, 4))
-  plot.zph("alccatEver",         ylim = c(-4, 4))
-par(mfrow=c(1, 1))
-
-par(mfrow=c(2, 4), mar=c(c(5.1, 5.1, 4.1, 2.1)))
-  plot.zph("como_depressYes",    ylim = c(-4, 4))
-  plot.zph("como_diabetesYes",   ylim = c(-4, 4))
-  plot.zph("como_cvdYes",        ylim = c(-4, 4))
-  plot.zph("como_respYes",       ylim = c(-4, 4))
-  plot.zph("como_kidneyYes",     ylim = c(-4, 4))
-  plot.zph("como_cancersYes",    ylim = c(-4, 4))
-par(mfrow=c(1, 1))

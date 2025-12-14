@@ -679,14 +679,72 @@ tbl_merge(tbls = list(t1, t2, t3),
 
 ```
 
-* Hyperlipidemia as time-dependent variable
-  * No significant interaction with egg intake
-  * The time-dependent variable was dropped
+### Restricted cubic spline for egg intake
 
-* There were no significant interaction between egg intake and meat intake
-  * The interaction term was dropped
+* In the output above, egg intake was entered into the models as categorical. In the following analysis, we used restricted cubic splines to model a nonlinear association between egg intake as continuous and stroke/TIA.
+  * The nonlinear terms of egg intake were highly significant (p = 0.0003)
+  * To visualize this nonlinear association, we have plotted hazard ratio for egg intake (adjusting for all other covariates) with 95 confidence intervals
+  * The reference for egg intake was set to 0 gram/day to make comparisons easier with the table above
 
-* Negative association with egg intake
-* Positive association with meat intake
-* Check the linearity on egg and meat intake?
-* Models - what covariates to be included?
+```{r cubic_spline_egg, echo = FALSE, warning = FALSE, message = FALSE}
+
+library(rms)
+
+# Restricted cubic spline
+dd <- datadist(ahs_medic_inc2)
+options(datadist='dd')
+
+# Remove RCS terms for all other food groups
+mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
+                       bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
+                       rcs(eggs_gram_ea, parms = 4) + 
+                       rcs(nutsseeds_gram_ea, parms = 4) + 
+                       meat_gram_ea + 
+                       fish_gram_ea + 
+                       alldairy2_gram_ea + 
+                       totalveg_gram_ea + 
+                       fruits_gram_ea + 
+                       refgrains_gram_ea + 
+                       whole_mixed_grains_gram_ea + 
+                       legumes_gram_ea, 
+                       data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
+
+# Change the reference to 0 g/d
+dd$limits$eggs_gram_ea[2] <- 0
+mv_mod3_rcs3 <- update(mv_mod3_rcs2)
+
+Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
+  ggplot() +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = 5:14 / 10) +
+  geom_hline(yintercept =  1, linetype = 2) +
+  coord_cartesian(ylim = c(0.7, 1.1)) +
+  labs(x = "Egg intake (energy-adjusted, gram/day)",
+       y = "Adjusted hazard ratio (95% CI)",
+       caption = "",
+       title = "Model 3: Cubic spline for egg intake (Ref = 0 g/d)") +
+  theme(text=element_text(size = 14))
+
+```
+
+* Hazard ratios at selected points of egg intake and their 95 CI are shown below:
+
+```{r cubic_spline_egg_tab, echo = FALSE, warning = FALSE, message = FALSE}
+Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.zero = TRUE) %>% 
+  mutate(`Egg intake (g/d)` = eggs_gram_ea,
+         `HR` = round(yhat, 2),
+         `Lower` = round(lower, 2),
+         `Upper` = round(upper, 2)) %>% 
+  select(`Egg intake (g/d)`, `HR`, `Lower`, `Upper`) %>%
+  knitr::kable()
+```
+
+### Interaction between egg and meat intake
+
+* There were no significant interactions between egg and meat intake (p = 0.28)
+
+### Hyperlipidemia as time-dependent
+
+* To examine if the effect of egg intake may be dependent on hyperlipidemia, we have used hyperlipidemia as a time-dependent variable in the Cox model (after removing prevalent hyperlipidemia status from the model)
+  * There were no significant interactions between egg intake and time-dependent hyperlipidemia status (p = 0.67, Model 3)
+

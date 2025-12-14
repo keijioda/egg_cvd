@@ -355,13 +355,44 @@ Egg CVD study
 
 ![](summary_stroke_files/figure-gfm/mv_cox_models_results-1.png)<!-- -->
 
-- Hyperlipidemia as time-dependent variable
-  - No significant interaction with egg intake
-  - The time-dependent variable was dropped
-- There were no significant interaction between egg intake and meat
-  intake
-  - The interaction term was dropped
-- Negative association with egg intake
-- Positive association with meat intake
-- Check the linearity on egg and meat intake?
-- Models - what covariates to be included?
+### Restricted cubic spline for egg intake
+
+- In the output above, egg intake was entered into the models as
+  categorical. In the following analysis, we used restricted cubic
+  splines to model a nonlinear association between egg intake as
+  continuous and stroke/TIA.
+  - The nonlinear terms of egg intake were highly significant (p =
+    0.0003)
+  - To visualize this nonlinear association, we have plotted hazard
+    ratio for egg intake (adjusting for all other covariates) with 95
+    confidence intervals
+  - The reference for egg intake was set to 0 gram/day to make
+    comparisons easier with the table above
+
+![](summary_stroke_files/figure-gfm/cubic_spline_egg-1.png)<!-- -->
+
+- Hazard ratios at selected points of egg intake and their 95 CI are
+  shown below:
+
+| Egg intake (g/d) |   HR | Lower | Upper |
+|-----------------:|-----:|------:|------:|
+|                5 | 0.94 |  0.88 |  1.01 |
+|               10 | 0.89 |  0.83 |  0.95 |
+|               15 | 0.86 |  0.80 |  0.93 |
+|               20 | 0.85 |  0.78 |  0.91 |
+|               30 | 0.84 |  0.78 |  0.91 |
+|               50 | 0.87 |  0.79 |  0.95 |
+
+### Interaction between egg and meat intake
+
+- There were no significant interactions between egg and meat intake (p
+  = 0.28)
+
+### Hyperlipidemia as time-dependent
+
+- To examine if the effect of egg intake may be dependent on
+  hyperlipidemia, we have used hyperlipidemia as a time-dependent
+  variable in the Cox model (after removing prevalent hyperlipidemia
+  status from the model)
+  - There were no significant interactions between egg intake and
+    time-dependent hyperlipidemia status (p = 0.67, Model 3)
