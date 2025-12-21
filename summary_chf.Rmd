@@ -1,5 +1,5 @@
 ---
-title: "Egg CVD study (stroke/TIA as outcome)"
+title: "Egg CVD study (CHF as outcome)"
 output: github_document
 always_allow_html: true
 ---
@@ -255,24 +255,24 @@ unverified_deaths <- ahs_medic %>%
 ahs_medic <- ahs_medic %>% 
   anti_join(unverified_deaths, by = "analysisid") 
 
-# Identify stroke cases
+# Identify CHF cases
 ahs_medic <- ahs_medic %>% 
-  mutate(STRK_YN = ifelse(is.na(STROKE_TIA_EVER), 0, 1),
-         STRK_YN = factor(STRK_YN, label = c("No", "Yes")))   
+  mutate(CHF_YN = ifelse(is.na(CHF_EVER), 0, 1),
+         CHF_YN = factor(CHF_YN, label = c("No", "Yes")))   
 
 prev_cases <- ahs_medic %>% 
-  filter(STRK_YN == "Yes") %>% 
-  mutate(STROKE_TIA_EVER = ymd(STROKE_TIA_EVER)) %>%
-  filter(STROKE_TIA_EVER <= qreturndate) %>% 
+  filter(CHF_YN == "Yes") %>% 
+  mutate(CHF_EVER = ymd(CHF_EVER)) %>%
+  filter(CHF_EVER <= qreturndate) %>% 
   select(BENE_ID, analysisid)
 
 # Exclude prevalent cases
-# Yields n = 39,157 subjects
+# Yields n = 39,766 subjects
 ahs_medic <- ahs_medic %>% 
   anti_join(prev_cases, by = "analysisid") %>% 
   mutate(BENE_BIRTH_DT = ymd(BENE_BIRTH_DT),
          BENE_DEATH_DT = ymd(BENE_DEATH_DT),
-         STROKE_TIA_EVER = ymd(STROKE_TIA_EVER))
+         CHF_EVER = ymd(CHF_EVER))
 
 ```
 
@@ -322,9 +322,9 @@ ahs_medic <- ahs_medic %>%
   * Medicare data include a variable (`VALID_DEATH_DT_SW`) indicating whether a beneficiary's day of death has been verified by the Social Security Administration or the Railroad Retirement Board.
   * There were 23 unverified death dates. Excluding these resulted n = 39,827.
 
-* Prevalent cases of stroke/TIA
+* Prevalent cases of CHF 
   * If the first diagnosis was made on or before AHS-2 enrollment date, consider it as a prevalent case
-  * n = 670 prevalent cases were exluded, resulting n = 39,157 subjects
+  * n = 1,271 prevalent cases were excluded, resulting n = 39,766 subjects
 
 ## Outcome
 
@@ -344,18 +344,18 @@ ahs_medic <- ahs_medic %>%
 # Define CVD cases --------------------------------------------------------
 
 names(ahs_medic) %>% grep("_EVER", ., value = TRUE)
-cvd_vars <- c("STROKE_TIA_EVER")
+cvd_vars <- c("CHF_EVER")
 
 cvd_df <- ahs_medic %>% 
   select(all_of(cvd_vars)) %>% 
   mutate_all(ymd) %>% 
   mutate_all(\(x) ifelse(is.na(x), "No", "Yes"))
 
-# Based on Stroke only
+# Based on CHF only
 ahs_medic2 <- ahs_medic %>% 
-  mutate(STROKE_TIA_EVER = ymd(STROKE_TIA_EVER), 
-         STRK_YN = ifelse(is.na(STROKE_TIA_EVER), 0, 1),
-         STRK_YN = factor(STRK_YN, labels = c("No", "Yes")))
+  mutate(CHF_EVER = ymd(CHF_EVER), 
+         CHF_YN = ifelse(is.na(CHF_EVER), 0, 1),
+         CHF_YN = factor(CHF_YN, labels = c("No", "Yes")))
 
 # Define variables for models ---------------------------------------------
 
@@ -369,9 +369,9 @@ ahs_medic_inc <- ahs_medic2 %>%
   mutate(
     age_last_seen = time_length(interval(BENE_BIRTH_DT, make_date(BENE_ENROLLMT_REF_YR, 12, 31)), "year"),
     ageout = case_when(
-              STRK_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, STROKE_TIA_EVER), "year"),
-              STRK_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
-              STRK_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
+              CHF_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, CHF_EVER), "year"),
+              CHF_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
+              CHF_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
     hyperl_age = case_when(
               HYPERL_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, HYPERL_EVER), "year"),
               .default = NA
@@ -387,12 +387,12 @@ ahs_medic_inc <- ahs_medic2 %>%
   )
 ```
 
-* The outcome is stroke/TIA
-* Among n = 39,157 subjects, there were 6042 incident cases (15.4%) of stroke/TIA
-* Age at diagnosis was calculated using ``STOKE_TIA_EVER`` variable in the Chronic Condition Warehouse (CCW) data. This variable shows the date when the beneficiary first met the criteria after January 1, 1999.
+* The outcome is CHF 
+* Among n = 39,766 subjects, there were 7,651 incident cases (19.2%) of CHF 
+* Age at diagnosis was calculated using ``CHF_EVER`` variable in the Chronic Condition Warehouse (CCW) data. This variable shows the date when the beneficiary first met the criteria after January 1, 1999.
   * For 27 CCW chronic conditions algorithms, see [here](https://www2.ccwdata.org/documents/10280/19139421/ccw-chronic-condition-algorithms.pdf)
   * For 30 CCW chronic conditions algorithms, see [here](https://www2.ccwdata.org/web/guest/condition-categories-chronic)
-* Among these incident stoke/TIA cases, the mean (SD) age of diagnosis was 80.8 (8.2) years. The median age of diagnosis was 81.1 years.
+* Among these incident CHF cases, the mean (SD) age of diagnosis was 81.0 (9.2) years. The median age of diagnosis was 82.0 years.
 
 ## Comorbidity
 
@@ -513,7 +513,7 @@ levels(ahs_medic_inc2$legumes_gram_ea_4) <- c("<33 g/d", "33-<60 g/d", "60-<100 
 
 ## Descriptive table 
 
-* The descriptive table by stroke incidence:
+* The descriptive table by CHF incidence:
 
 ```{r descriptive_table, echo = FALSE}
 
@@ -564,8 +564,8 @@ tablevars <- c("agecat",
                )
 
 ahs_medic_inc2 %>%
-  mutate(STRK_YN2 = fct_recode(STRK_YN, "Non-case" = "No", "Case" = "Yes")) %>%
-  CreateTableOne(tablevars, strata = "STRK_YN2", data = ., addOverall = TRUE) %>% 
+  mutate(CHF_YN2 = fct_recode(CHF_YN, "Non-case" = "No", "Case" = "Yes")) %>%
+  CreateTableOne(tablevars, strata = "CHF_YN2", data = ., addOverall = TRUE) %>% 
   print(showAllLevels = TRUE) %>% 
   kableone()
 
@@ -575,21 +575,21 @@ ahs_medic_inc2 %>%
 
 ```{r descriptive_table_by_egg, echo = FALSE}
 ahs_medic_inc2 %>% 
-  CreateTableOne(c("STRK_YN", tablevars), strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
+  CreateTableOne(c("CHF_YN", tablevars), strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
   print(showAllLevels = TRUE) %>% 
   kableone()
 
 ```
 ## Cox models
 
-* To examine risk factors associated with incident stroke/TIA, we employed the Cox proportional hazards model with attained age as the time scale
+* To examine risk factors associated with incident CHF, we employed the Cox proportional hazards model with attained age as the time scale
   * Age at entry was calculated based on the return date of AHS-2 questionnaire
   * Those who died during the follow-up were censored at the date of death verified in Medicare data
-  * Those who were diagnosed with stroke/TIA after the study enrollment were identified as incident cases and their age at diagnosis was calculated. 
-    * The mean follow-up years was 16.4 years (median 18.3 years)
-    * The total person-years of follow-up was 640,424 years
+  * Those who were diagnosed with CHF after the study enrollment were identified as incident cases and their age at diagnosis was calculated. 
+    * The mean follow-up years was 16.3 years (median 18.4 years)
+    * The total person-years of follow-up was 646,213 years
   * The main exposure variable of interest was energy-adjusted egg intake, gram/day. Subjects were classified into 4 egg intake groups as shown in the descriptive table, and egg intake was entered into the models as categorical
-    * This is because there was a non-linear association between egg intake and stoke/TIA when egg intake was entered as continuous (see below)
+    * This is because there was a non-linear association between egg intake and CHF when egg intake was entered as continuous (see below)
   * All other dietary variables were entered into the models as continuous. Their hazard ratios were estimated for an increment of 100 gram/day
 
 
@@ -600,7 +600,7 @@ ahs_medic_inc2 %>%
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   mutate(bene_sex_F = relevel(bene_sex_F, ref="F"),
          bmicat     = relevel(bmicat, ref="Normal"),
-         inc_STRK   = ifelse(STRK_YN == "Yes", 1, 0),
+         inc_CHF   = ifelse(CHF_YN == "Yes", 1, 0),
          kcal100    = kcal / 100,
          meat_gram_ea100 = meat_gram_ea / 100,
          fish_gram_ea100 = fish_gram_ea / 100,
@@ -616,7 +616,7 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
 
 # Model 1
 # Demographics, lifestyles, egg intake (as categorical) and kcal
-mv_mod1 <- coxph(Surv(agein, ageout, inc_STRK) ~ eggs_gram_ea_4 + 
+mv_mod1 <- coxph(Surv(agein, ageout, inc_CHF) ~ eggs_gram_ea_4 + 
                   bene_sex_F + rti_race3 + marital + educyou2 + 
                   bmicat + exercise + sleephrs2 + smokecat6 + alccat +  
                   kcal100, data = ahs_medic_inc2, method = "efron")
@@ -698,10 +698,10 @@ tbl_merge(tbls = list(t1, t2, t3),
 
 ```
 
-### Restricted cubic spline for egg intake
+### Restricted cubic spline for dietary intake
 
-* In the output above, egg intake was entered into the models as categorical. In the following analysis, we used restricted cubic splines to model a nonlinear association between egg intake as continuous and stroke/TIA.
-  * The nonlinear terms of egg intake were highly significant (p = 0.0003)
+* In the output above, egg intake was entered into the models as categorical. In the following analysis, we used restricted cubic splines to model a nonlinear association between egg intake as continuous and CHF.
+  * The nonlinear terms of egg intake were significant (p = 0.0094)
   * To visualize this nonlinear association, we have plotted hazard ratio for egg intake (adjusting for all other covariates) with 95 confidence intervals
   * The reference for egg intake was set to 0 gram/day to make comparisons easier with the table above
 
@@ -714,10 +714,9 @@ dd <- datadist(ahs_medic_inc2)
 options(datadist='dd')
 
 # Remove RCS terms for all other food groups
-mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
+mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_CHF) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                        bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
                        rcs(eggs_gram_ea, parms = 4) + 
-                       rcs(nutsseeds_gram_ea, parms = 4) + 
                        meat_gram_ea + 
                        fish_gram_ea + 
                        alldairy2_gram_ea + 
@@ -725,6 +724,7 @@ mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_STRK) ~ bene_sex_F + rti_race3 + mar
                        fruits_gram_ea + 
                        refgrains_gram_ea + 
                        whole_mixed_grains_gram_ea + 
+                       rcs(nutsseeds_gram_ea, parms = 4) + 
                        legumes_gram_ea, 
                        data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
 
@@ -758,12 +758,43 @@ Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.ze
   knitr::kable()
 ```
 
+* When examined for non-linearity, nuts/seed intake also showed a significant non-linear association with IHD. The plot of adjusted HRs is shown below.
+
+
+```{r cubic_spline_nuts, echo = FALSE, warning = FALSE, message = FALSE}
+# Nuts/seeds intake
+# Change the reference to 0 g/d
+dd$limits$nutsseeds_gram_ea[2] <- 0
+mv_mod3_rcs3 <- update(mv_mod3_rcs2)
+
+Predict(mv_mod3_rcs3, nutsseeds_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
+  ggplot() +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = 5:16 / 10) +
+  geom_hline(yintercept =  1, linetype = 2) +
+  coord_cartesian(ylim = c(0.7, 1.2)) +
+  labs(x = "Nuts/seeds intake (energy-adjusted, gram/day)",
+       y = "Adjusted hazard ratio (95% CI)",
+       caption = "",
+       title = "Model 3: Cubic spline for nuts/seeds intake (Ref = 0 g/d)") +
+  theme(text=element_text(size = 14))
+
+Predict(mv_mod3_rcs3, nutsseeds_gram_ea = 1:5 * 10, fun = exp, ref.zero = TRUE) %>% 
+  mutate(`Nuts/seeds intake (g/d)` = nutsseeds_gram_ea,
+         `HR` = round(yhat, 2),
+         `Lower` = round(lower, 2),
+         `Upper` = round(upper, 2)) %>% 
+  select(`Nuts/seeds intake (g/d)`, `HR`, `Lower`, `Upper`) %>%
+  knitr::kable()
+
+```
+
 ### Interaction between egg and meat intake
 
-* There were no significant interactions between egg and meat intake (p = 0.28)
+* There were no significant interactions between egg and meat intake (p = 0.38)
 
 ### Hyperlipidemia as time-dependent
 
 * To examine if the effect of egg intake may be dependent on hyperlipidemia, we have used hyperlipidemia as a time-dependent variable in the Cox model (after removing prevalent hyperlipidemia status from the model)
-  * There were no significant interactions between egg intake and time-dependent hyperlipidemia status (p = 0.67, Model 3)
+  * There were no significant interactions between egg intake and time-dependent hyperlipidemia status (p = 0.76, Model 3)
 

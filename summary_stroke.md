@@ -1,4 +1,4 @@
-Egg CVD study
+Egg CVD study (stroke/TIA as outcome)
 ================
 
 ## Aim
