@@ -75,7 +75,7 @@ Egg CVD study (acute MI as outcome)
 
 ## Outcome
 
-- The outcome is atrial fibrosis
+- The outcome is acute MI
 - Among n = 39,670 subjects, there were 1700 incident cases (4.3%) of
   acute MI
 - Age at diagnosis was calculated using `AMI_EVER` variable in the
@@ -85,9 +85,8 @@ Egg CVD study (acute MI as outcome)
     [here](https://www2.ccwdata.org/documents/10280/19139421/ccw-chronic-condition-algorithms.pdf)
   - For 30 CCW chronic conditions algorithms, see
     [here](https://www2.ccwdata.org/web/guest/condition-categories-chronic)
-- Among these incident atrial fibrosis cases, the mean (SD) age of
-  diagnosis was 80.9 (8.0) years. The median age of diagnosis was 81.4
-  years.
+- Among these incident acute MI cases, the mean (SD) age of diagnosis
+  was 81.9 (8.4) years. The median age of diagnosis was 82.4 years.
 
 ## Comorbidity
 
@@ -339,9 +338,9 @@ Egg CVD study (acute MI as outcome)
     questionnaire
   - Those who died during the follow-up were censored at the date of
     death verified in Medicare data
-  - Those who were diagnosed with atrial fibrosis after the study
-    enrollment were identified as incident cases and their age at
-    diagnosis was calculated.
+  - Those who were diagnosed with acute MI after the study enrollment
+    were identified as incident cases and their age at diagnosis was
+    calculated.
     - The mean follow-up years was 16.8 years (median 18.5 years)
     - The total person-years of follow-up was 664,646 years
   - The main exposure variable of interest was energy-adjusted egg
@@ -349,7 +348,7 @@ Egg CVD study (acute MI as outcome)
     as shown in the descriptive table, and egg intake was entered into
     the models as categorical
     - This is because there was a non-linear association between egg
-      intake and afib when egg intake was entered as continuous (see
+      intake and acute MI when egg intake was entered as continuous (see
       below)
   - All other dietary variables were entered into the models as
     continuous. Their hazard ratios were estimated for an increment of

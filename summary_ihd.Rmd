@@ -387,12 +387,12 @@ ahs_medic_inc <- ahs_medic2 %>%
   )
 ```
 
-* The outcome is atrial fibrosis 
+* The outcome is ischemic HD 
 * Among n = 37,173 subjects, there were 8,218 incident cases (22.1%) of ischemic HD 
 * Age at diagnosis was calculated using ``ISCHEMICHEART_EVER`` variable in the Chronic Condition Warehouse (CCW) data. This variable shows the date when the beneficiary first met the criteria after January 1, 1999.
   * For 27 CCW chronic conditions algorithms, see [here](https://www2.ccwdata.org/documents/10280/19139421/ccw-chronic-condition-algorithms.pdf)
   * For 30 CCW chronic conditions algorithms, see [here](https://www2.ccwdata.org/web/guest/condition-categories-chronic)
-* Among these incident atrial fibrosis cases, the mean (SD) age of diagnosis was 80.9 (8.0) years. The median age of diagnosis was 81.4 years.
+* Among these incident IHD cases, the mean (SD) age of diagnosis was 79.0 (8.4) years. The median age of diagnosis was 79.1 years.
 
 ## Comorbidity
 
@@ -585,11 +585,11 @@ ahs_medic_inc2 %>%
 * To examine risk factors associated with incident acute MI, we employed the Cox proportional hazards model with attained age as the time scale
   * Age at entry was calculated based on the return date of AHS-2 questionnaire
   * Those who died during the follow-up were censored at the date of death verified in Medicare data
-  * Those who were diagnosed with atrial fibrosis after the study enrollment were identified as incident cases and their age at diagnosis was calculated. 
+  * Those who were diagnosed with IHD after the study enrollment were identified as incident cases and their age at diagnosis was calculated. 
     * The mean follow-up years was 16.2 years (median 18.3 years)
     * The total person-years of follow-up was 601,694 years
   * The main exposure variable of interest was energy-adjusted egg intake, gram/day. Subjects were classified into 4 egg intake groups as shown in the descriptive table, and egg intake was entered into the models as categorical
-    * This is because there was a non-linear association between egg intake and afib when egg intake was entered as continuous (see below)
+    * This is because there was a non-linear association between egg intake and IHD when egg intake was entered as continuous (see below)
   * All other dietary variables were entered into the models as continuous. Their hazard ratios were estimated for an increment of 100 gram/day
 
 
