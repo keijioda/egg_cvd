@@ -358,7 +358,7 @@ Egg CVD study (IHD as outcome)
 
 ![](summary_ihd_files/figure-gfm/mv_cox_models_results-1.png)<!-- -->
 
-### Restricted cubic spline for egg intake
+### Restricted cubic spline for dietary intake
 
 - In the output above, egg intake was entered into the models as
   categorical. In the following analysis, we used restricted cubic
@@ -378,12 +378,36 @@ Egg CVD study (IHD as outcome)
 
 | Egg intake (g/d) |   HR | Lower | Upper |
 |-----------------:|-----:|------:|------:|
-|                5 | 0.97 |  0.91 |  1.04 |
-|               10 | 0.94 |  0.89 |  1.00 |
-|               15 | 0.92 |  0.87 |  0.98 |
-|               20 | 0.91 |  0.86 |  0.98 |
-|               30 | 0.91 |  0.85 |  0.98 |
-|               50 | 0.93 |  0.86 |  1.00 |
+|                5 | 0.96 |  0.90 |  1.02 |
+|               10 | 0.93 |  0.87 |  0.98 |
+|               15 | 0.91 |  0.85 |  0.97 |
+|               20 | 0.90 |  0.84 |  0.96 |
+|               30 | 0.89 |  0.83 |  0.96 |
+|               50 | 0.91 |  0.84 |  0.99 |
+
+- When examined for non-linearity, meat and nuts/seed intake also showed
+  significant non-linear associations with IHD. The plots of adjusted
+  HRs are shown below.
+
+![](summary_ihd_files/figure-gfm/cubic_spline_meat-1.png)<!-- -->
+
+| Meat intake (g/d) |   HR | Lower | Upper |
+|------------------:|-----:|------:|------:|
+|                25 | 1.18 |  1.10 |  1.25 |
+|                50 | 1.22 |  1.13 |  1.31 |
+|                75 | 1.22 |  1.12 |  1.32 |
+|               100 | 1.20 |  1.08 |  1.34 |
+|               200 | 1.14 |  0.85 |  1.53 |
+
+![](summary_ihd_files/figure-gfm/cubic_spline_meat-2.png)<!-- -->
+
+| Nuts/seeds intake (g/d) |   HR | Lower | Upper |
+|------------------------:|-----:|------:|------:|
+|                      10 | 0.91 |  0.84 |  0.99 |
+|                      20 | 0.87 |  0.79 |  0.95 |
+|                      30 | 0.85 |  0.78 |  0.93 |
+|                      40 | 0.85 |  0.78 |  0.92 |
+|                      50 | 0.86 |  0.79 |  0.93 |
 
 ### Interaction between egg and meat intake
 

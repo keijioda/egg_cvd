@@ -698,7 +698,7 @@ tbl_merge(tbls = list(t1, t2, t3),
 
 ```
 
-### Restricted cubic spline for egg intake
+### Restricted cubic spline for dietary intake
 
 * In the output above, egg intake was entered into the models as categorical. In the following analysis, we used restricted cubic splines to model a nonlinear association between egg intake as continuous and IHD.
   * The nonlinear terms of egg intake were significant (p = 0.0094)
@@ -717,14 +717,14 @@ options(datadist='dd')
 mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_IHD) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                        bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
                        rcs(eggs_gram_ea, parms = 4) + 
-                       meat_gram_ea + 
+                       rcs(meat_gram_ea, parms = 4) + 
                        fish_gram_ea + 
                        alldairy2_gram_ea + 
                        totalveg_gram_ea + 
                        fruits_gram_ea + 
                        refgrains_gram_ea + 
                        whole_mixed_grains_gram_ea + 
-                       nutsseeds_gram_ea +
+                       rcs(nutsseeds_gram_ea, parms = 4) + 
                        legumes_gram_ea, 
                        data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
 
@@ -757,6 +757,66 @@ Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.ze
   select(`Egg intake (g/d)`, `HR`, `Lower`, `Upper`) %>%
   knitr::kable()
 ```
+
+* When examined for non-linearity, meat and nuts/seed intake also showed significant non-linear associations with IHD. The plots of adjusted HRs are shown below.
+
+
+```{r cubic_spline_meat, echo = FALSE, warning = FALSE, message = FALSE}
+# Meat intake
+# Change the reference to 0 g/d
+dd$limits$meat_gram_ea[2] <- 0
+mv_mod3_rcs3 <- update(mv_mod3_rcs2)
+
+Predict(mv_mod3_rcs3, meat_gram_ea = seq(0, 100, by = 1), fun = exp, ref.zero = TRUE) %>% 
+  ggplot() +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = 5:16 / 10) +
+  geom_hline(yintercept =  1, linetype = 2) +
+  coord_cartesian(ylim = c(0.9, 1.5)) +
+  labs(x = "Meat intake (energy-adjusted, gram/day)",
+       y = "Adjusted hazard ratio (95% CI)",
+       caption = "",
+       title = "Model 3: Cubic spline for meat intake (Ref = 0 g/d)") +
+  theme(text=element_text(size = 14))
+
+Predict(mv_mod3_rcs3, meat_gram_ea = c(25, 50, 75, 100, 200), fun = exp, ref.zero = TRUE) %>% 
+  mutate(`Meat intake (g/d)` = meat_gram_ea,
+         `HR` = round(yhat, 2),
+         `Lower` = round(lower, 2),
+         `Upper` = round(upper, 2)) %>% 
+  select(`Meat intake (g/d)`, `HR`, `Lower`, `Upper`) %>%
+  knitr::kable()
+
+# Nuts/seeds intake
+# Change the reference to 0 g/d
+dd$limits$nutsseeds_gram_ea[2] <- 0
+mv_mod3_rcs3 <- update(mv_mod3_rcs2)
+
+Predict(mv_mod3_rcs3, nutsseeds_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
+  ggplot() +
+  geom_line(linewidth = 1.3) +
+  scale_y_continuous(breaks = 5:16 / 10) +
+  geom_hline(yintercept =  1, linetype = 2) +
+  coord_cartesian(ylim = c(0.7, 1.2)) +
+  labs(x = "Nuts/seeds intake (energy-adjusted, gram/day)",
+       y = "Adjusted hazard ratio (95% CI)",
+       caption = "",
+       title = "Model 3: Cubic spline for nuts/seeds intake (Ref = 0 g/d)") +
+  theme(text=element_text(size = 14))
+
+Predict(mv_mod3_rcs3, nutsseeds_gram_ea = 1:5 * 10, fun = exp, ref.zero = TRUE) %>% 
+  mutate(`Nuts/seeds intake (g/d)` = nutsseeds_gram_ea,
+         `HR` = round(yhat, 2),
+         `Lower` = round(lower, 2),
+         `Upper` = round(upper, 2)) %>% 
+  select(`Nuts/seeds intake (g/d)`, `HR`, `Lower`, `Upper`) %>%
+  knitr::kable()
+
+```
+
+```{r cubic_spline_nutsseed, echo = FALSE, warning = FALSE, message = FALSE}
+```
+
 
 ### Interaction between egg and meat intake
 

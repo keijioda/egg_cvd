@@ -1027,30 +1027,6 @@ summary(mv_mod3_rcs2)
 anova(mv_mod3_rcs2)
 ggrmsMD(mv_mod3_rcs2, ahs_medic_inc2)
 
-# Change the reference to 10 g/d
-dd$limits$eggs_gram_ea[2] <- 10
-
-mv_mod3_rcs3 <- update(mv_mod3_rcs2)
-Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 60, by = 5), fun = exp, ref.zero = TRUE) %>% 
-  select(eggs_gram_ea, yhat, lower, upper)
-
-Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.zero = TRUE) %>% 
-  select(eggs_gram_ea, yhat, lower, upper)
-
-# pdf("RCS_egg_MV3_MI1.pdf", width = 6.5, height = 5)
-Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
-  ggplot() +
-  geom_line(linewidth = 1.3) +
-  scale_y_continuous(breaks = 9:14 / 10) +
-  geom_hline(yintercept =  1, linetype = 2) +
-  coord_cartesian(ylim = c(0.88, 1.22)) +
-  labs(x = "Egg intake (energy-adjusted, gram/day)",
-       y = "Adjusted hazard ratio (95% CI)",
-       caption = "",
-       title = "Model 3: Cubic spline for egg intake") +
-  theme(text=element_text(size = 14))
-# dev.off()
-
 # Change the reference to 0 g/d
 dd$limits$eggs_gram_ea[2] <- 0
 mv_mod3_rcs3 <- update(mv_mod3_rcs2)

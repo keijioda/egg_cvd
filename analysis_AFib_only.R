@@ -956,15 +956,15 @@ tbl_merge(tbls = list(t1, t2, t3),
 
 # Checking interactions ---------------------------------------------------
 
-# Egg x meat intereaction (as categorical)
+# Egg x meat interaction (as categorical)
 # Not significant p = 0.958718
 mv_mod3 %>% update(.~. - meat_gram_ea100 + eggs_gram_ea_4 * meat_gram_ea_4) %>% anova()
 
-# Egg x fish intereaction (as categorical)
+# Egg x fish interaction (as categorical)
 # Not significant p = 0.576888    
 mv_mod3 %>% update(.~. - fish_gram_ea100 + eggs_gram_ea_4 * fish_gram_ea_4) %>% anova()
 
-# Egg x dairy intereaction (as categorical)
+# Egg x dairy inteeaction (as categorical)
 # Not significant p = 0.972066 
 mv_mod3 %>% update(.~. - alldairy2_gram_ea100 + eggs_gram_ea_4 * alldairy2_gram_ea_4) %>% anova()
 
@@ -1002,44 +1002,20 @@ ggrmsMD(mv_mod3_rcs, ahs_medic_inc2, ncol = 5)
 mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_AFIB) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                        bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
                        rcs(eggs_gram_ea, parms = 4) + 
-                       meat_gram_ea + 
-                       fish_gram_ea + 
-                       alldairy2_gram_ea + 
-                       totalveg_gram_ea + 
-                       fruits_gram_ea + 
-                       refgrains_gram_ea + 
+                       meat_gram_ea +
+                       fish_gram_ea +
+                       alldairy2_gram_ea +
+                       totalveg_gram_ea +
+                       fruits_gram_ea +
+                       refgrains_gram_ea +
                        whole_mixed_grains_gram_ea +
                        nutsseeds_gram_ea +
-                       legumes_gram_ea, 
+                       legumes_gram_ea,
                        data = ahs_medic_inc2, method = "efron", x = TRUE, y = TRUE)
 
 summary(mv_mod3_rcs2)
 anova(mv_mod3_rcs2)
 ggrmsMD(mv_mod3_rcs2, ahs_medic_inc2)
-
-# Change the reference to 10 g/d
-dd$limits$eggs_gram_ea[2] <- 10
-
-mv_mod3_rcs3 <- update(mv_mod3_rcs2)
-Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 60, by = 5), fun = exp, ref.zero = TRUE) %>% 
-  select(eggs_gram_ea, yhat, lower, upper)
-
-Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.zero = TRUE) %>% 
-  select(eggs_gram_ea, yhat, lower, upper)
-
-# pdf("RCS_egg_MV3_MI1.pdf", width = 6.5, height = 5)
-Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = TRUE) %>% 
-  ggplot() +
-  geom_line(linewidth = 1.3) +
-  scale_y_continuous(breaks = 9:14 / 10) +
-  geom_hline(yintercept =  1, linetype = 2) +
-  coord_cartesian(ylim = c(0.88, 1.22)) +
-  labs(x = "Egg intake (energy-adjusted, gram/day)",
-       y = "Adjusted hazard ratio (95% CI)",
-       caption = "",
-       title = "Model 3: Cubic spline for egg intake") +
-  theme(text=element_text(size = 14))
-# dev.off()
 
 # Change the reference to 0 g/d
 dd$limits$eggs_gram_ea[2] <- 0
