@@ -409,37 +409,37 @@ unverified_deaths <- ahs_medic %>%
 ahs_medic <- ahs_medic %>% 
   anti_join(unverified_deaths, by = "analysisid") 
 
-# Identify afib cases
+# Identify CHF cases
 ahs_medic <- ahs_medic %>% 
-  mutate(IHD_YN = ifelse(is.na(ISCHEMICHEART_EVER), 0, 1),
-         IHD_YN = factor(IHD_YN, label = c("No", "Yes")))   
+  mutate(CHF_YN = ifelse(is.na(CHF_EVER), 0, 1),
+         CHF_YN = factor(CHF_YN, label = c("No", "Yes")))   
 
-# There are 10872 IHD cases (27.3%)
+# There are 8922 IHD cases (21.7%)
 ahs_medic %>%
-  group_by(IHD_YN) %>% 
+  group_by(CHF_YN) %>% 
   tally() %>% 
   mutate(pct = n / sum(n) * 100)
 
-# Find prevalent cases: 2654 prevalent cases
+# Find prevalent cases: 1,271 prevalent cases
 ahs_medic %>% 
-  filter(IHD_YN == "Yes") %>% 
-  mutate(ISCHEMICHEART_EVER = ymd(ISCHEMICHEART_EVER)) %>%
-  filter(ISCHEMICHEART_EVER <= qreturndate) %>% 
-  select(analysisid, IHD_YN, qreturndate, ISCHEMICHEART_EVER)
+  filter(CHF_YN == "Yes") %>% 
+  mutate(CHF_EVER = ymd(CHF_EVER)) %>%
+  filter(CHF_EVER <= qreturndate) %>% 
+  select(analysisid, CHF_YN, qreturndate, CHF_EVER)
 
 prev_cases <- ahs_medic %>% 
-  filter(IHD_YN == "Yes") %>% 
-  mutate(ISCHEMICHEART_EVER = ymd(ISCHEMICHEART_EVER)) %>%
-  filter(ISCHEMICHEART_EVER <= qreturndate) %>% 
+  filter(CHF_YN == "Yes") %>% 
+  mutate(CHF_EVER = ymd(CHF_EVER)) %>%
+  filter(CHF_EVER <= qreturndate) %>% 
   select(BENE_ID, analysisid)
 
 # Exclude prevalent cases
-# Yields n = 37,173 subjects
+# Yields n = 39,766 subjects
 ahs_medic <- ahs_medic %>% 
   anti_join(prev_cases, by = "analysisid") %>% 
   mutate(BENE_BIRTH_DT = ymd(BENE_BIRTH_DT),
          BENE_DEATH_DT = ymd(BENE_DEATH_DT),
-         ISCHEMICHEART_EVER = ymd(ISCHEMICHEART_EVER))
+         CHF_EVER = ymd(CHF_EVER))
 
 nrow(ahs_medic)
 
@@ -487,7 +487,7 @@ hyperl_diag_date %>%
 # Define CVD cases --------------------------------------------------------
 
 names(ahs_medic) %>% grep("_EVER", ., value = TRUE)
-cvd_vars <- c("ISCHEMICHEART_EVER")
+cvd_vars <- c("CHF_EVER")
 
 ahs_medic %>% select(all_of(cvd_vars))
 
@@ -497,17 +497,17 @@ cvd_df <- ahs_medic %>%
   mutate_all(\(x) ifelse(is.na(x), "No", "Yes"))
 
 # Number of cases for each condition
-# IHD 8218 incident cases (22.1%)
+# IHD 7651 incident cases (19.2%)
 CreateTableOne(cvd_vars, data = cvd_df)
 
-# Based on AMI only
+# Based on CHF only
 ahs_medic2 <- ahs_medic %>% 
-  mutate(ISCHEMICHEART_EVER = ymd(ISCHEMICHEART_EVER), 
-         IHD_YN = ifelse(is.na(ISCHEMICHEART_EVER), 0, 1),
-         IHD_YN = factor(IHD_YN, labels = c("No", "Yes")))
+  mutate(CHF_EVER = ymd(CHF_EVER), 
+         CHF_YN = ifelse(is.na(CHF_EVER), 0, 1),
+         CHF_YN = factor(CHF_YN, labels = c("No", "Yes")))
 
 ahs_medic2 %>% 
-  group_by(IHD_YN) %>% 
+  group_by(CHF_YN) %>% 
   tally() %>% 
   mutate(pct = n / sum(n) * 100)
 
@@ -523,9 +523,9 @@ ahs_medic_inc <- ahs_medic2 %>%
   mutate(
     age_last_seen = time_length(interval(BENE_BIRTH_DT, make_date(BENE_ENROLLMT_REF_YR, 12, 31)), "year"),
     ageout = case_when(
-              IHD_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, ISCHEMICHEART_EVER), "year"),
-              IHD_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
-              IHD_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
+              CHF_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, CHF_EVER), "year"),
+              CHF_YN == "No" & !is.na(BENE_DEATH_DT)  ~ time_length(interval(BENE_BIRTH_DT, BENE_DEATH_DT), "year"),
+              CHF_YN == "No" &  is.na(BENE_DEATH_DT)  ~ age_last_seen),
     hyperl_age = case_when(
               HYPERL_YN == "Yes" ~ time_length(interval(BENE_BIRTH_DT, HYPERL_EVER), "year"),
               .default = NA
@@ -543,21 +543,21 @@ ahs_medic_inc <- ahs_medic2 %>%
 summary(ahs_medic_inc$agein)
 summary(ahs_medic_inc$ageout)
 
-# Mean/median follow-up years: Mean 16.2 years, Median 18.3 years
+# Mean/median follow-up years: Mean 16.3 years, Median 18.4 years
 summary(ahs_medic_inc$fuyear) %>% round(2)
 
-# Total followup person-years: 601,694 person-years
+# Total followup person-years: 646,213 person-years
 sum(ahs_medic_inc$fuyear)
 
-# Age at diagnosis: Mean 79.0 years, Median 79.1 years
+# Age at diagnosis: Mean 81.0 years, Median 82.0 years
 ahs_medic_inc %>% 
-  filter(IHD_YN == "Yes") %>% 
+  filter(CHF_YN == "Yes") %>% 
   select(ageout) %>% 
   summary()
 
-# SD = 8.4
+# SD = 9.2
 ahs_medic_inc %>% 
-  filter(IHD_YN == "Yes") %>% 
+  filter(CHF_YN == "Yes") %>% 
   pull(ageout) %>% sd()
 
 # Co-morbidity ------------------------------------------------------------
@@ -759,7 +759,7 @@ tablevars <- c("agecat",
                )
 
 ahs_medic_inc2 %>% 
-  group_by(IHD_YN) %>% 
+  group_by(CHF_YN) %>% 
   tally() %>% 
   mutate(pct = n / sum(n) * 100)
 
@@ -769,21 +769,9 @@ ahs_medic_inc2 %>%
   write.csv(file = "Desc_Tab_by_egg.csv")
 
 out <- ahs_medic_inc2 %>%
-  mutate(IHD_YN2 = fct_recode(IHD_YN, "Non-case" = "No", "Case" = "Yes")) %>%
-  CreateTableOne(tablevars, strata = "IHD_YN2", data = ., addOverall = TRUE)
+  mutate(CHF_YN2 = fct_recode(CHF_YN, "Non-case" = "No", "Case" = "Yes")) %>%
+  CreateTableOne(tablevars, strata = "CHF_YN2", data = ., addOverall = TRUE)
 print(out, showAllLevels = TRUE)
-
-# Same Table 1, but only among those with hyperlipidemia
-# ahs_medic_inc2 %>% 
-#   group_by(HYPERL_YN) %>% 
-#   tally() %>% 
-#   mutate(pct = n / sum(n))
-# 
-# out <- ahs_medic_inc2 %>% 
-#   filter(HYPERL_YN == "Yes") %>% 
-#   mutate(CVD_YN2 = fct_recode(CVD_YN, "Non-case" = "No", "Case" = "Yes")) %>% 
-#   CreateTableOne(tablevars, strata = "CVD_YN2", data = ., addOverall = TRUE)
-# print(out, showAllLevels = TRUE)
 
 # Cox models --------------------------------------------------------------
 
@@ -806,7 +794,7 @@ vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "bmicat", "exercise"
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   mutate(bene_sex_F = relevel(bene_sex_F, ref="F"),
          bmicat     = relevel(bmicat, ref="Normal"),
-         inc_IHD    = ifelse(IHD_YN == "Yes", 1, 0),
+         inc_IHD    = ifelse(CHF_YN == "Yes", 1, 0),
          kcal100    = kcal / 100,
          meat_gram_ea100 = meat_gram_ea / 100,
          fish_gram_ea100 = fish_gram_ea / 100,
@@ -828,13 +816,13 @@ ahs_medic_inc2_td %>%
   as_tibble() %>% 
   # filter(HYPERL_YN == "No") %>%
   filter(HYPERL_YN == "Yes") %>%
-  select(analysisid, tstart, tstop, inc_IHD, hyperl_age, hyperl, HYPERL_EVER, ISCHEMICHEART_EVER)
+  select(analysisid, tstart, tstop, inc_IHD, hyperl_age, hyperl, HYPERL_EVER, CHF_EVER)
 
 ahs_medic_inc2_td %>% 
   as_tibble() %>% 
   filter(HYPERL_YN == "Yes") %>%
   filter(hyperl_age < agein) %>%
-  select(analysisid, agein, tstart, tstop, inc_IHD, hyperl_age, hyperl, HYPERL_EVER, ISCHEMICHEART_EVER)
+  select(analysisid, agein, tstart, tstop, inc_IHD, hyperl_age, hyperl, HYPERL_EVER, CHF_EVER)
 
 # Cox proportinal hazards model
 coxm <- function(var, dsn = ahs_medic_inc2_td){
@@ -959,22 +947,20 @@ tbl_merge(tbls = list(t1, t2, t3),
                 p.value_2 = "**p**", 
                 p.value_3 = "**p**") %>% 
   # as_flex_table() %>% 
-  as_hux_xlsx(file = "Egg_4Gr_IHD_HR_table_MI1.xlsx")
-
+  as_hux_xlsx(file = "Egg_4Gr_CHF_HR_table_MI1.xlsx")
 
 # Checking interactions ---------------------------------------------------
 
 # Egg x meat intereaction (as categorical)
-# Not significant p = 0.2493752
+# Not significant p = 0.3760020
 mv_mod3 %>% update(.~. - meat_gram_ea100 + eggs_gram_ea_4 * meat_gram_ea_4) %>% anova()
 
 # Egg x fish intereaction (as categorical)
-# Significant p = 0.0088444 
+# Significant p = 0.9699901  
 mv_mod3 %>% update(.~. - fish_gram_ea100 + eggs_gram_ea_4 * fish_gram_ea_4) %>% anova()
-mv_mod3 %>% update(.~. - fish_gram_ea100 + eggs_gram_ea_4 * fish_gram_ea_4) %>% summary()
 
 # Egg x dairy intereaction (as categorical)
-# Not significant p = 0.3883961 
+# Not significant p = 0.0565437 
 mv_mod3 %>% update(.~. - alldairy2_gram_ea100 + eggs_gram_ea_4 * alldairy2_gram_ea_4) %>% anova()
 
 # Checking the linearity of dietary variables -----------------------------
@@ -1010,7 +996,7 @@ ggrmsMD(mv_mod3_rcs, ahs_medic_inc2, ncol = 5)
 mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_IHD) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                        bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
                        rcs(eggs_gram_ea, parms = 4) + 
-                       rcs(meat_gram_ea, parms = 4) + 
+                       meat_gram_ea +
                        fish_gram_ea + 
                        alldairy2_gram_ea + 
                        totalveg_gram_ea + 
@@ -1047,34 +1033,10 @@ Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = T
   theme(text=element_text(size = 14))
 # dev.off()
 
-# Meat intake
-# Change the reference to 0 g/d
-dd$limits$meat_gram_ea[2] <- 0
-mv_mod3_rcs3 <- update(mv_mod3_rcs2)
-ahs_medic_inc2 %>% select(meat_gram_ea) %>% summary()
-
-Predict(mv_mod3_rcs3, meat_gram_ea = seq(0, 100, by = 5), fun = exp, ref.zero = TRUE) %>% 
-  select(meat_gram_ea, yhat, lower, upper)
-
-# pdf("RCS_egg_MV3_MI1.pdf", width = 6.5, height = 5)
-Predict(mv_mod3_rcs3, meat_gram_ea = seq(0, 100, by = 1), fun = exp, ref.zero = TRUE) %>% 
-  ggplot() +
-  geom_line(linewidth = 1.3) +
-  scale_y_continuous(breaks = 5:16 / 10) +
-  geom_hline(yintercept =  1, linetype = 2) +
-  coord_cartesian(ylim = c(0.9, 1.5)) +
-  labs(x = "Meat intake (energy-adjusted, gram/day)",
-       y = "Adjusted hazard ratio (95% CI)",
-       caption = "",
-       title = "Model 3: Cubic spline for meat intake (Ref = 0 g/d)") +
-  theme(text=element_text(size = 14))
-# dev.off()
-
 # Nuts/seeds intake
 # Change the reference to 0 g/d
 dd$limits$nutsseeds_gram_ea[2] <- 0
 mv_mod3_rcs3 <- update(mv_mod3_rcs2)
-ahs_medic_inc2 %>% select(nutsseeds_gram_ea) %>% summary()
 
 Predict(mv_mod3_rcs3, nutsseeds_gram_ea = seq(0, 50, by = 5), fun = exp, ref.zero = TRUE) %>% 
   select(meat_gram_ea, yhat, lower, upper)

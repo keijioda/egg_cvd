@@ -946,13 +946,18 @@ t3 <- tbl_regression(mv_mod3,
                      pvalue_fun = label_style_pvalue(digits = 3)) %>% 
   add_global_p(keep = FALSE)
 
+library(huxtable)
+library(openxlsx)
+
 tbl_merge(tbls = list(t1, t2, t3),
           tab_spanner = c("**Model 1**", "**Model 2**", "**Model 3**")) %>% 
   modify_header(label = "**Variable**", 
                 p.value_1 = "**p**", 
                 p.value_2 = "**p**", 
                 p.value_3 = "**p**") %>% 
-  as_flex_table()
+  # as_flex_table() %>% 
+  as_hux_xlsx(file = "Egg_4Gr_AFib_HR_table_MI1.xlsx")
+
 
 # Checking interactions ---------------------------------------------------
 
