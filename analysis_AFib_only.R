@@ -648,7 +648,7 @@ ahs_medic_inc2$whole_mixed_grains_gram_ea    <- kcal_adjust(whole_mixed_grains_g
 
 # # Create quantile groups
 # # Specify p for other percentile groups
-# cutQ <- function(x, p=0:4/4, na.rm=FALSE) cut(x, quantile(x, p, na.rm=na.rm), include.lowest=TRUE)
+cutQ <- function(x, p=0:4/4, na.rm=FALSE) cut(x, quantile(x, p, na.rm=na.rm), include.lowest=TRUE)
 # 
 # # Quartiles for egg, dairy and nuts/seeds
 # ea_diet_vars <- c("alldairy2_gram_ea", "totalveg_gram_ea",
@@ -668,7 +668,7 @@ ahs_medic_inc2$whole_mixed_grains_gram_ea    <- kcal_adjust(whole_mixed_grains_g
 # table(cutQ(ahs_medic_inc2$alldairy2_gram_ea[ahs_medic_inc2$alldairy2_gram_ea > 0], na.rm = TRUE, p = 0:3/3))
 # table(cutQ(ahs_medic_inc2$totalveg_gram_ea, na.rm = TRUE, p = 0:4/4))
 # table(cutQ(ahs_medic_inc2$eggs_gram_ea[ahs_medic_inc2$eggs_gram_ea > 0], na.rm = TRUE, p = 0:3/3))
-# table(cutQ(ahs_medic_inc2$eggs_gram_ea[ahs_medic_inc2$eggs_gram_ea > 0], na.rm = TRUE, p = 0:4/4))
+table(cutQ(ahs_medic_inc2$eggs_gram_ea[ahs_medic_inc2$eggs_gram_ea > 0], na.rm = TRUE, p = 0:4/4))
 
 ahs_medic_inc2 <- ahs_medic_inc2 %>% 
   mutate(meat_gram_ea_4 = cut(meat_gram_ea, breaks = c(-Inf, 0, 11, 33, Inf), right = TRUE), 
@@ -680,23 +680,26 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
          legumes_gram_ea_4 = cut(legumes_gram_ea, breaks = c(-Inf, 33, 60, 100, Inf), right = TRUE),
          refgrains_gram_ea_4 = cut(refgrains_gram_ea, breaks = c(-Inf, 40, 83, 150, Inf), right = TRUE),
          whole_mixed_grains_gram_ea_4 = cut(whole_mixed_grains_gram_ea, breaks = c(-Inf, 120, 210, 350, Inf), right = TRUE),
-         eggs_gram_ea_4 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 4.5, 16.5, Inf), right = TRUE)
+         eggs_gram_ea_4 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 4.5, 16.5, Inf), right = TRUE),
+         eggs_gram_ea_5 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 4, 10, 23, Inf), right = TRUE)
          # eggs_gram_ea_4 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 3.5, 7.5, 20, Inf), right = TRUE)
          ) 
 
 ahs_medic_inc2 %>% 
-  group_by(eggs_gram_ea_4) %>% 
+  # group_by(eggs_gram_ea_4) %>% 
+  group_by(eggs_gram_ea_5) %>% 
   tally() %>% 
   mutate(pct = n / nrow(ahs_medic_inc2) * 100)
 
 ahs_medic_inc2 %>%
   as_tibble() %>%
-  select(meat_gram_ea_4, fish_gram_ea_4, eggs_gram_ea_4, alldairy2_gram_ea_4) %>%
+  select(meat_gram_ea_4, fish_gram_ea_4, eggs_gram_ea_5, alldairy2_gram_ea_4) %>%
   lapply(levels)
 
 levels(ahs_medic_inc2$meat_gram_ea_4)  <- c("None", "<11 g/d", "11-<33 g/d", "33+ g/d")
 levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<9 g/d", "9-<18 g/d", "18+ g/d")
 levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("None", "<4.5 g/d", "4.5-<16.5 g/d", "16.5+ g/d")
+levels(ahs_medic_inc2$eggs_gram_ea_5)  <- c("None", "<4 g/d", "4-<10 g/d", "10-<23 g/d", "23+ g/d")
 levels(ahs_medic_inc2$alldairy2_gram_ea_4) <- c("None", "<50 g/d", "50-<180 g/d", "180+ g/d")
 levels(ahs_medic_inc2$totalveg_gram_ea_4) <- c("<185 g/d", "185-<270 g/d", "270-<380 g/d", "380+ g/d")
 levels(ahs_medic_inc2$fruits_gram_ea_4) <- c("<170 g/d", "170-<280 g/d", "280-<420 g/d", "420+ g/d")
@@ -733,7 +736,7 @@ tablevars <- c("agecat",
                "como_kidney", 
                "como_hypoth", 
                "como_cancers",
-               # "eggs_gram_ea_4",
+               "eggs_gram_ea_5",
                "eggs_gram_ea",
                "meat_gram_ea_4",
                "meat_gram_ea",
@@ -761,7 +764,7 @@ ahs_medic_inc2 %>%
   mutate(pct = n / sum(n) * 100)
 
 ahs_medic_inc2 %>% 
-  CreateTableOne(tablevars, strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
+  CreateTableOne(tablevars, strata = "eggs_gram_ea_5", data = ., addOverall = TRUE) %>% 
   print(showAllLevels = TRUE, noSpaces = TRUE, printToggle = FALSE) %>% 
   write.csv(file = "Desc_Tab_by_egg.csv")
 
@@ -795,7 +798,7 @@ vars <- c("bene_sex_F", "rti_race3", "marital", "educyou2", "bmicat", "exercise"
           "como_hypert", "como_resp",
           "como_anemia", "como_kidney", "como_hypoth", "como_cancers",
           # "kcal100", "egg_freq", "meat_gram_ea", "fish_gram_ea",  "alldairy2_gram_ea",
-          "kcal100", "eggs_gram_ea_4", "meat_gram_ea_4", "fish_gram_ea",  "alldairy2_gram_ea",
+          "kcal100", "eggs_gram_ea_5", "meat_gram_ea_4", "fish_gram_ea",  "alldairy2_gram_ea",
           "totalveg_gram_ea", "fruits_gram_ea", "refgrains_gram_ea", "whole_mixed_grains_gram_ea",
           "nutsseeds_gram_ea", "legumes_gram_ea"
 )
@@ -868,7 +871,7 @@ rr_intx <- function(var, beta, V){
 
 # Model 1
 # Demographics, lifestyles, egg intake (as categorical) and kcal
-mv_mod1 <- coxph(Surv(agein, ageout, inc_AFIB) ~ eggs_gram_ea_4 + 
+mv_mod1 <- coxph(Surv(agein, ageout, inc_AFIB) ~ eggs_gram_ea_5 + 
                   bene_sex_F + rti_race3 + marital + educyou2 + 
                   bmicat + exercise + sleephrs2 + smokecat6 + alccat +  
                   kcal100, data = ahs_medic_inc2, method = "efron")
@@ -894,7 +897,7 @@ summary(mv_mod3)
 library(gtsummary)
 
 var_labels <- list(
-  eggs_gram_ea_4                = "Egg (energy-adjusted)",
+  eggs_gram_ea_5                = "Egg (energy-adjusted)",
   bene_sex_F                    = "Sex",
   rti_race3                     = "Race (RTI race code)",
   marital                       = "Marital status",
@@ -946,6 +949,14 @@ t3 <- tbl_regression(mv_mod3,
                      pvalue_fun = label_style_pvalue(digits = 3)) %>% 
   add_global_p(keep = FALSE)
 
+tbl_merge(tbls = list(t1, t2, t3),
+          tab_spanner = c("**Model 1**", "**Model 2**", "**Model 3**")) %>% 
+  modify_header(label = "**Variable**", 
+                p.value_1 = "**p**", 
+                p.value_2 = "**p**", 
+                p.value_3 = "**p**") %>% 
+  as_flex_table() 
+
 library(huxtable)
 library(openxlsx)
 
@@ -956,22 +967,26 @@ tbl_merge(tbls = list(t1, t2, t3),
                 p.value_2 = "**p**", 
                 p.value_3 = "**p**") %>% 
   # as_flex_table() %>% 
-  as_hux_xlsx(file = "Egg_4Gr_AFib_HR_table_MI1.xlsx")
+  as_hux_xlsx(file = "./Results/Egg_5Gr_AFib_HR_table_MI1.xlsx")
 
 
 # Checking interactions ---------------------------------------------------
 
 # Egg x meat interaction (as categorical)
-# Not significant p = 0.958718
-mv_mod3 %>% update(.~. - meat_gram_ea100 + eggs_gram_ea_4 * meat_gram_ea_4) %>% anova()
+# Not significant p = 0.890753
+mv_mod3 %>% update(.~. - meat_gram_ea100 + eggs_gram_ea_5 * meat_gram_ea_4) %>% anova()
 
 # Egg x fish interaction (as categorical)
-# Not significant p = 0.576888    
-mv_mod3 %>% update(.~. - fish_gram_ea100 + eggs_gram_ea_4 * fish_gram_ea_4) %>% anova()
+# Not significant p = 0.417794    
+mv_mod3 %>% update(.~. - fish_gram_ea100 + eggs_gram_ea_5 * fish_gram_ea_4) %>% anova()
 
-# Egg x dairy inteeaction (as categorical)
-# Not significant p = 0.972066 
-mv_mod3 %>% update(.~. - alldairy2_gram_ea100 + eggs_gram_ea_4 * alldairy2_gram_ea_4) %>% anova()
+# Egg x dairy interaction (as categorical)
+# Not significant p = 0.660382 
+mv_mod3 %>% update(.~. - alldairy2_gram_ea100 + eggs_gram_ea_5 * alldairy2_gram_ea_4) %>% anova()
+
+# Egg x race interaction
+# Not significant p = 0.278869 
+mv_mod3 %>% update(.~. + eggs_gram_ea_5 * rti_race3) %>% anova()
 
 # Checking the linearity of dietary variables -----------------------------
 
@@ -984,8 +999,6 @@ options(datadist='dd')
 
 # Model 3
 # Egg as cubic spline with 5 knots
-# egg nonlinear p = 0.0011
-# nuts/seed nonlinear p = 0.0379
 mv_mod3_rcs <- cph(Surv(agein, ageout, inc_AFIB) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                        bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
                        rcs(eggs_gram_ea, parms = 4) + 
@@ -1004,6 +1017,7 @@ anova(mv_mod3_rcs)
 ggrmsMD(mv_mod3_rcs, ahs_medic_inc2, ncol = 5)
 
 # Remove RCS terms for all other food groups
+# Egg non-linear: p = 0.0192
 mv_mod3_rcs2 <- cph(Surv(agein, ageout, inc_AFIB) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                        bmicat + exercise + sleephrs2 + smokecat6 + alccat + kcal100 +
                        rcs(eggs_gram_ea, parms = 4) + 
@@ -1048,7 +1062,7 @@ Predict(mv_mod3_rcs3, eggs_gram_ea = seq(0, 50, by = 1), fun = exp, ref.zero = T
 # Multivariable Cox model
 mv_mod <- coxph(Surv(agein, ageout, inc_AFIB) ~ bene_sex_F + rti_race3 + marital + educyou2 + 
                   bmicat + exercise + sleephrs2 + smokecat6 + alccat + hyperl + 
-                  kcal100 + eggs_gram_ea_4 + hyperl * eggs_gram_ea_4, data = ahs_medic_inc2_td, method = "efron")
+                  kcal100 + eggs_gram_ea_5 + hyperl * eggs_gram_ea_5, data = ahs_medic_inc2_td, method = "efron")
 
 mv_out  <- summary(mv_mod)
 anova(mv_mod)

@@ -495,12 +495,14 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
          legumes_gram_ea_4 = cut(legumes_gram_ea, breaks = c(-Inf, 33, 60, 100, Inf), right = TRUE),
          refgrains_gram_ea_4 = cut(refgrains_gram_ea, breaks = c(-Inf, 40, 83, 150, Inf), right = TRUE),
          whole_mixed_grains_gram_ea_4 = cut(whole_mixed_grains_gram_ea, breaks = c(-Inf, 120, 210, 350, Inf), right = TRUE),
-         eggs_gram_ea_4 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 4.5, 16.5, Inf), right = TRUE)
+         eggs_gram_ea_4 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 4.5, 16.5, Inf), right = TRUE),
+         eggs_gram_ea_5 = cut(eggs_gram_ea, breaks = c(-Inf, 0, 4, 10, 23, Inf), right = TRUE)
          ) 
 
 levels(ahs_medic_inc2$meat_gram_ea_4)  <- c("None", "<11 g/d", "11-<33 g/d", "33+ g/d")
 levels(ahs_medic_inc2$fish_gram_ea_4)  <- c("None", "<9 g/d", "9-<18 g/d", "18+ g/d")
 levels(ahs_medic_inc2$eggs_gram_ea_4)  <- c("None", "<4.5 g/d", "4.5-<16.5 g/d", "16.5+ g/d")
+levels(ahs_medic_inc2$eggs_gram_ea_5)  <- c("None", "<4 g/d", "4-<10 g/d", "10-<23 g/d", "23+ g/d")
 levels(ahs_medic_inc2$alldairy2_gram_ea_4) <- c("None", "<50 g/d", "50-<180 g/d", "180+ g/d")
 levels(ahs_medic_inc2$totalveg_gram_ea_4) <- c("<185 g/d", "185-<270 g/d", "270-<380 g/d", "380+ g/d")
 levels(ahs_medic_inc2$fruits_gram_ea_4) <- c("<170 g/d", "170-<280 g/d", "280-<420 g/d", "420+ g/d")
@@ -541,25 +543,25 @@ tablevars <- c("agecat",
                "como_kidney", 
                "como_hypoth", 
                "como_cancers",
-               # "eggs_gram_ea_4",
+               "eggs_gram_ea_5",
                "eggs_gram_ea",
-               "meat_gram_ea_4",
+               # "meat_gram_ea_4",
                "meat_gram_ea",
-               "fish_gram_ea_4",
+               # "fish_gram_ea_4",
                "fish_gram_ea",
-               "alldairy2_gram_ea_4",
+               # "alldairy2_gram_ea_4",
                "alldairy2_gram_ea",
-               "totalveg_gram_ea_4",
+               # "totalveg_gram_ea_4",
                "totalveg_gram_ea",
-               "fruits_gram_ea_4",
+               # "fruits_gram_ea_4",
                "fruits_gram_ea",
-               "refgrains_gram_ea_4",
+               # "refgrains_gram_ea_4",
                "refgrains_gram_ea",
-               "whole_mixed_grains_gram_ea_4",
+               # "whole_mixed_grains_gram_ea_4",
                "whole_mixed_grains_gram_ea",
-               "nutsseeds_gram_ea_4",
+               # "nutsseeds_gram_ea_4",
                "nutsseeds_gram_ea",
-               "legumes_gram_ea_4",
+               # "legumes_gram_ea_4",
                "legumes_gram_ea"
                )
 
@@ -571,11 +573,12 @@ ahs_medic_inc2 %>%
 
 ```
 
-* The descriptive table by egg intake (4 groups):
+* The descriptive table by egg intake (5 groups):
 
 ```{r descriptive_table_by_egg, echo = FALSE}
+tablevars2 <- tablevars[tablevars != "eggs_gram_ea_5"]
 ahs_medic_inc2 %>% 
-  CreateTableOne(c("STRK_YN", tablevars), strata = "eggs_gram_ea_4", data = ., addOverall = TRUE) %>% 
+  CreateTableOne(c("STRK_YN", tablevars2), strata = "eggs_gram_ea_5", data = ., addOverall = TRUE) %>% 
   print(showAllLevels = TRUE) %>% 
   kableone()
 
@@ -616,7 +619,7 @@ ahs_medic_inc2 <- ahs_medic_inc2 %>%
 
 # Model 1
 # Demographics, lifestyles, egg intake (as categorical) and kcal
-mv_mod1 <- coxph(Surv(agein, ageout, inc_STRK) ~ eggs_gram_ea_4 + 
+mv_mod1 <- coxph(Surv(agein, ageout, inc_STRK) ~ eggs_gram_ea_5 + 
                   bene_sex_F + rti_race3 + marital + educyou2 + 
                   bmicat + exercise + sleephrs2 + smokecat6 + alccat +  
                   kcal100, data = ahs_medic_inc2, method = "efron")
@@ -636,7 +639,7 @@ mv_mod3 <- update(mv_mod2, .~. + como_depress + como_disab + como_diabetes + com
 library(gtsummary)
 
 var_labels <- list(
-  eggs_gram_ea_4                = "Egg (energy-adjusted)",
+  eggs_gram_ea_5                = "Egg (energy-adjusted)",
   bene_sex_F                    = "Sex",
   rti_race3                     = "Race (RTI race code)",
   marital                       = "Marital status",
@@ -760,10 +763,14 @@ Predict(mv_mod3_rcs3, eggs_gram_ea = c(5, 10, 15, 20, 30, 50), fun = exp, ref.ze
 
 ### Interaction between egg and meat intake
 
-* There were no significant interactions between egg and meat intake (p = 0.28)
+* There were no significant interactions between egg and meat intake (p = 0.34)
+
+### Interaction between egg and race 
+
+* There were no significant interactions between egg and RTI race (p = 0.42)
 
 ### Hyperlipidemia as time-dependent
 
 * To examine if the effect of egg intake may be dependent on hyperlipidemia, we have used hyperlipidemia as a time-dependent variable in the Cox model (after removing prevalent hyperlipidemia status from the model)
-  * There were no significant interactions between egg intake and time-dependent hyperlipidemia status (p = 0.67, Model 3)
+  * There were no significant interactions between egg intake and time-dependent hyperlipidemia status (p = 0.75, Model 3)
 
